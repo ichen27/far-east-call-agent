@@ -15,6 +15,7 @@
   "dependencies": {
     "@openai/agents": "^0.3.7",
     "@openai/agents-extensions": "^0.3.7",
+    "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "twilio": "^5.11.1",

@@ -116,12 +116,6 @@
     return phone
   }
 
-  function formatStatus(status: string): string {
-  if (!status) return 'Unknown'
-  if (status === 'pending') return 'In Progress'
-  return status.charAt(0).toUpperCase() + status.slice(1)
-  }
-
   function formatCurrency(amount: number): string {
     return `$${amount.toFixed(2)}`
   }

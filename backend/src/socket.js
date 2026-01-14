@@ -54,6 +54,7 @@ export const server = http.createServer((req, res) => {
         })),
         notes: order.notes || '',
         time: order.created_at,
+        date: order.created_at.split('T')[0],
         total: order.total
       }));
 
@@ -182,6 +183,7 @@ export function broadcastNewOrder(order) {
       })),
       notes: order.notes || '',
       time: order.time || new Date().toISOString(),
+      date: (order.time || new Date().toISOString()).split('T')[0],
       total: order.total,
       status: order.status
     }

@@ -1,3 +1,7 @@
+// Loads environment varibales from .env
+import dotenv from 'dotenv';
+// loads variables from .env into process.env
+dotenv.config();
 // Node.js web framework: handles HTTP routing, request/response management. 
 // Using it to set up server end points
 import express from 'express';
@@ -14,8 +18,6 @@ import { RealtimeAgent, RealtimeSession, tool } from '@openai/agents/realtime';
 // Extension package with integration for third party services
 // Bridges Twilio's audio stream format with OpenAI's realtime API, handling audio endcoding/decoding
 import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
-// Loads environment varibales from .env
-import dotenv from 'dotenv';
 // Typescripts schema validation library for input/output for agent tools
 // Checks if json sent to and from agent tools is valid
 import { z } from 'zod';
@@ -29,8 +31,6 @@ import { broadcastNewOrder } from './socket.js';
 
 
 
-// loads variables from .env into process.env
-dotenv.config();
 
 // Checks to see if variables have been loaded
 console.log('API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');

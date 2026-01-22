@@ -326,7 +326,7 @@ console.log(`Inserted ${menuItems.length} menu items`);
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_number    TEXT UNIQUE NOT NULL,
+      order_number    TEXT NOT NULL,
       phone_number    TEXT NOT NULL,
       status          TEXT DEFAULT 'pending',
       order_type      TEXT DEFAULT 'pickup',

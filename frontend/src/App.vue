@@ -125,7 +125,7 @@
   async function updateOrderStatus(order: Order, newStatus: string) {
     try {
       //const response = await fetch(`https://horotelic-chun-oversoothing.ngrok-free.dev//api/orders/${order.orderNumber}/status`, {
-        const response = await fetch(`https://98.92.229.178//api/orders/${order.orderNumber}/status`, {
+      const response = await fetch(`https://98.92.229.178//api/orders/${order.orderNumber}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

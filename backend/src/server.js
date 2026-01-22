@@ -29,9 +29,6 @@ import { broadcastNewOrder } from './socket.js';
 
 
 
-
-
-
 // Checks to see if variables have been loaded
 console.log('API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 console.log('API Key loaded:', process.env.TWILIO_ACCOUNT_SID ? 'Yes' : 'No');
@@ -105,6 +102,7 @@ app.post('/incoming-call', express.urlencoded({ extended: false }), (req, res) =
 // Attatched to the same server as Express
 // Listens at the path /media-stream
 const wss = new WebSocketServer({ server, path: '/media-stream' });
+
 
 
 
@@ -757,6 +755,11 @@ wss.on('connection', (twilioWs) => {
   //Creates a session combining the AI agent with this transport
   const session = new RealtimeSession(agent, { transport });
 
+  session.on('error', (error) => {
+    console.log('Session error (caller may have hung up):', error.type || error);
+  });
+  
+
   // Connect to OpenAI's real-time API using API key
   session.connect({ apiKey: process.env.OPENAI_API_KEY })
   // When connected successfully, log it
@@ -782,3 +785,4 @@ wss.on('connection', (twilioWs) => {
 
 // Start the server on port 3000
 server.listen(3000, () => console.log('Server running on port 3000'));
+

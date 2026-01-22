@@ -33,7 +33,8 @@
   // Fetch existing orders from the database on startup
   async function fetchExistingOrders() {
     try {
-      const response = await fetch('http://localhost:8080/api/orders')
+      //const response = await fetch('https://horotelic-chun-oversoothing.ngrok-free.dev//api/orders')
+      const response = await fetch('https://98.92.229.178//api/orders')
       if (!response.ok) throw new Error('Failed to fetch orders')
       
       const existingOrders = await response.json()
@@ -59,7 +60,8 @@
     fetchExistingOrders()
   })
 
-  const ws = new WebSocket('ws://localhost:8080');
+ //const ws = new WebSocket('wss://horotelic-chun-oversoothing.ngrok-free.dev/dashboard');
+ const ws = new WebSocket('wss://98.92.229.178/dashboard');
 
   ws.onopen = () => {
     console.log('✅ Connected to order stream!');
@@ -122,7 +124,8 @@
 
   async function updateOrderStatus(order: Order, newStatus: string) {
     try {
-      const response = await fetch(`http://localhost:8080/api/orders/${order.orderNumber}/status`, {
+      //const response = await fetch(`https://horotelic-chun-oversoothing.ngrok-free.dev//api/orders/${order.orderNumber}/status`, {
+        const response = await fetch(`https://98.92.229.178//api/orders/${order.orderNumber}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

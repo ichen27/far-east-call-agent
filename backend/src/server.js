@@ -88,7 +88,7 @@ app.post('/incoming-call', express.urlencoded({ extended: false }), (req, res) =
   res.type('xml').send(`
     <Response>
       <Connect>
-        <Stream url="wss://horotelic-chun-oversoothing.ngrok-free.dev/media-stream">
+        <Stream url="wss://fe-local-call.fareastbackend.us/media-stream">
           <Parameter name="callSid" value="${callSid}" />
         </Stream>
       </Connect>

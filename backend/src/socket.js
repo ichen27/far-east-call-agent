@@ -205,6 +205,6 @@ export function broadcastNewOrder(order) {
 
 
 server.listen(8080, () => {
-    console.log(`✅ WebSocket server running on ws://localhost:${8080}`);
-    console.log('📺 Waiting for clients to connect...\n');
+    console.log(`WebSocket server running on ws://localhost:${8080}`);
+    console.log('Waiting for clients to connect...\n');
   });

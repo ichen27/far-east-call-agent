@@ -1,6 +1,5 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted } from 'vue'
-
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
 
   interface OrderItem {
     name: string
@@ -18,8 +17,14 @@
     totalPrice: number
     status: string 
   }
+  
   const orders = ref<Order[]>([])
   const viewMode = ref<'current' | 'history'>('current')
+  const lastKnownOrderNumbers = ref<Set<string>>(new Set())
+  let pollInterval: ReturnType<typeof setInterval> | null = null
+
+  // Configure your backend URL - set this as an environment variable
+  const API_BASE_URL = 'http://fe-local-display.fareastbackend.us'
 
   // Computed property to filter orders based on view mode
   const filteredOrders = computed(() => {
@@ -30,17 +35,16 @@
     }
   })
 
-  // Fetch existing orders from the database on startup
-  async function fetchExistingOrders() {
+  // Fetch orders and detect new ones
+  async function fetchOrders() {
     try {
-      //const response = await fetch('http://localhost:8080/api/orders')
-      const response = await fetch('http://fe-local-display/api/orders')
+      const response = await fetch(`${API_BASE_URL}/api/orders`)
       if (!response.ok) throw new Error('Failed to fetch orders')
       
-      const existingOrders = await response.json()
+      const fetchedOrders = await response.json()
       
       // Map the response to match Order interface
-      orders.value = existingOrders.map((order: any) => ({
+      const mappedOrders: Order[] = fetchedOrders.map((order: any) => ({
         orderNumber: order.orderNumber,
         items: order.items,
         phoneNumber: order.phoneNumber,
@@ -48,43 +52,55 @@
         totalPrice: order.total,
         status: order.status
       }))
+
+      // Detect new orders (for notification/sound if you want)
+      const currentOrderNumbers = new Set(mappedOrders.map(o => o.orderNumber))
+      const newOrders = mappedOrders.filter(
+        o => !lastKnownOrderNumbers.value.has(o.orderNumber)
+      )
       
-      console.log(`📦 Loaded ${orders.value.length} existing orders`)
+      if (newOrders.length > 0 && lastKnownOrderNumbers.value.size > 0) {
+        console.log(`🆕 ${newOrders.length} new order(s) detected!`)
+        // Optional: play a sound or show notification here
+      }
+
+      // Update the orders list
+      orders.value = mappedOrders
+      lastKnownOrderNumbers.value = currentOrderNumbers
+      
     } catch (error) {
-      console.error('Failed to fetch existing orders:', error)
+      console.error('Failed to fetch orders:', error)
+    }
+  }
+
+  // Start polling for orders
+  function startPolling(intervalMs = 3000) {
+    // Initial fetch
+    fetchOrders()
+    
+    // Poll every N seconds
+    pollInterval = setInterval(fetchOrders, intervalMs)
+    console.log(`📡 Polling for orders every ${intervalMs / 1000}s`)
+  }
+
+  // Stop polling
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+      console.log('⏹️ Stopped polling')
     }
   }
 
   // Load existing orders when component mounts
   onMounted(() => {
-    fetchExistingOrders()
+    startPolling(3000) // Poll every 3 seconds
   })
 
- //const ws = new WebSocket('ws://localhost:8080/dashboard');
- const ws = new WebSocket('ws://fe-local-display/dashboard');
-
-  ws.onopen = () => {
-    console.log('✅ Connected to order stream!');
-    console.log('📺 Waiting for orders...\n');
-  };
-
-  ws.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-
-    if (message.type === 'welcome') {
-      console.log('👋', message.message);
-    } else if (message.type === 'new_order') {
-      // Add new order to the beginning of the list
-      orders.value.unshift({
-        orderNumber: message.payload.orderNumber,
-        items: message.payload.items,
-        phoneNumber: message.payload.phoneNumber,
-        timeOrdered: new Date(message.payload.time),
-        totalPrice: message.payload.total,
-        status: message.payload.status || 'pending'
-      });
-    }
-  };
+  // Clean up when component unmounts
+  onUnmounted(() => {
+    stopPolling()
+  })
 
 
 
@@ -122,10 +138,14 @@
     return `$${amount.toFixed(2)}`
   }
 
+      //const response = await fetch(`http://localhost:8080/api/orders/${order.orderNumber}/status`, {
+      //const response = await fetch(`http://fe-local-display/api/orders/${order.orderNumber}/status`, {
+
+
+  
   async function updateOrderStatus(order: Order, newStatus: string) {
     try {
-      //const response = await fetch(`http://localhost:8080/api/orders/${order.orderNumber}/status`, {
-      const response = await fetch(`http://fe-local-display/api/orders/${order.orderNumber}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/orders/${order.orderNumber}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

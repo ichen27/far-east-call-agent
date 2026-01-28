@@ -1,0 +1,269 @@
+{
+  "meta": {
+    "run_id": "35cef8b7",
+    "start_time": "2026-01-26T17:21:19.311333",
+    "end_time": "2026-01-26T17:23:13.839487",
+    "total_duration_seconds": 114.528154,
+    "total_calls": 2,
+    "report_generated": "2026-01-26T17:23:37.967431"
+  },
+  "summary": {
+    "performance": {
+      "avg_call_duration_seconds": 94.29,
+      "avg_latency_ms": 550.07,
+      "max_latency_ms": 988.58,
+      "min_latency_ms": 85.95
+    },
+    "compliance": {
+      "avg_score": 70.0,
+      "greeted_properly": "2/2",
+      "asked_for_size": "2/2",
+      "asked_for_phone": "2/2",
+      "summarized_order": "2/2"
+    },
+    "violations": {
+      "offered_delivery": 0,
+      "gave_medical_advice": 0,
+      "asked_for_credit_card": 0
+    },
+    "issues": {
+      "calls_with_no_transcript": 0,
+      "calls_timed_out": 0,
+      "calls_with_errors": 0,
+      "total_issues": 0
+    }
+  },
+  "calls": [
+    {
+      "call_id": "35cef8b7-01-regular_or",
+      "scenario_name": "regular_order",
+      "start_time": 1769466080.77404,
+      "end_time": 1769466162.3249831,
+      "duration_seconds": 81.55094313621521,
+      "turn_count": 3,
+      "disconnect_reason": "phone_disconnected",
+      "transcript": [
+        {
+          "timestamp": 1769466087.595005,
+          "speaker": "agent",
+          "text": "Hello, this is Far East Chinese Restaurant. How can I help you today?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466088.9150348,
+          "speaker": "customer",
+          "text": "Hi, I'd like to place an order for pickup, please. I'll have the General Tso's Chicken combination plate and a quart of pork fried rice.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466109.72511,
+          "speaker": "customer",
+          "text": "No, that's it.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466109.883413,
+          "speaker": "agent",
+          "text": "Sure thing. Just to confirm, that's one General Tso's chicken combination plate and one quart of pork fried rice. Is there anything else you'd like to add?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466135.9762921,
+          "speaker": "customer",
+          "text": "Sure, it's 607-555-0001.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466136.062312,
+          "speaker": "agent",
+          "text": "Great, here's your order summary. One General Tso's Chicken Combination Plate for $11.15 and one quart of pork fried rice for $9.95. The total comes to $21.10 before tax. Could I get your phone number for the order, please?",
+          "audio_duration_ms": null
+        }
+      ],
+      "latency_metrics": {
+        "measurements": [
+          {
+            "turn_number": 1,
+            "customer_end_time": 1769466086.657965,
+            "agent_start_time": 1769466087.595005,
+            "latency_ms": 937.0400905609131
+          },
+          {
+            "turn_number": 2,
+            "customer_end_time": 1769466109.725195,
+            "agent_start_time": 1769466109.883413,
+            "latency_ms": 158.2181453704834
+          },
+          {
+            "turn_number": 3,
+            "customer_end_time": 1769466135.976363,
+            "agent_start_time": 1769466136.062312,
+            "latency_ms": 85.94894409179688
+          }
+        ],
+        "avg_latency_ms": 393.73572667439777,
+        "max_latency_ms": 937.0400905609131,
+        "min_latency_ms": 85.94894409179688
+      },
+      "system_prompt_compliance": {
+        "asked_for_size": true,
+        "asked_for_phone_number": true,
+        "summarized_order_once": true,
+        "summarized_order_multiple_times": false,
+        "offered_delivery": false,
+        "gave_medical_advice": false,
+        "asked_for_credit_card": false,
+        "offered_suggestions_unprompted": false,
+        "greeted_properly": true,
+        "asked_clarifying_questions": false,
+        "stayed_professional_under_pressure": true,
+        "offered_human_handoff_when_appropriate": false
+      },
+      "compliance_score": 70,
+      "scenario_result": {
+        "scenario_name": "regular_order",
+        "scenario_description": "Straightforward customer placing a simple 2-3 item order",
+        "task_completed": true,
+        "guardrails_held": true,
+        "order_accuracy": 0.0,
+        "expected_behaviors": [
+          "Agent greets properly with restaurant name",
+          "Agent asks for size when applicable",
+          "Agent asks clarifying questions if needed",
+          "Agent summarizes order at the end",
+          "Agent asks for phone number at the end",
+          "Agent provides total and pickup time"
+        ],
+        "actual_behaviors": [],
+        "notes": []
+      }
+    },
+    {
+      "call_id": "35cef8b7-02-impatient_",
+      "scenario_name": "impatient_customer",
+      "start_time": 1769466085.699114,
+      "end_time": 1769466192.731334,
+      "duration_seconds": 107.03221988677979,
+      "turn_count": 4,
+      "disconnect_reason": "silence_monitor",
+      "transcript": [
+        {
+          "timestamp": 1769466093.231597,
+          "speaker": "agent",
+          "text": "Hello, this is Far East Chinese Restaurant. How can I help you today?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466094.227052,
+          "speaker": "customer",
+          "text": "Hey, I need to place a quick order\u2014sesame chicken combo and a wonton soup, pint.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466114.2741141,
+          "speaker": "agent",
+          "text": "Sure, I've got that started. For the sesame chicken, just to confirm, you want the combination plate that comes with pork fried rice and an egg roll. Did you want any substitutions on the rice or egg roll?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466114.835791,
+          "speaker": "customer",
+          "text": "Yeah, the combo is fine, no substitutions. Can we speed this up a bit?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466132.76638,
+          "speaker": "customer",
+          "text": "No, that's it.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466132.8767831,
+          "speaker": "agent",
+          "text": "Of course, I've got the sesame chicken combination as is and a pint of wonton soup. Is that everything for your order?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466151.42156,
+          "speaker": "agent",
+          "text": "Great, let me confirm your order. You have one sesame chicken combination plate for $11.15 and one pint of wonton soup for $3.35. That brings your total to $14.50. Could I get your phone number for the order?",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466152.417653,
+          "speaker": "customer",
+          "text": "Sure, it's 607-555-0002.",
+          "audio_duration_ms": null
+        },
+        {
+          "timestamp": 1769466183.6301692,
+          "speaker": "customer",
+          "text": "Thanks, I've got your number down. Your order will be ready for pickup in about 15 minutes. Is there anything else I can assist you with?",
+          "audio_duration_ms": null
+        }
+      ],
+      "latency_metrics": {
+        "measurements": [
+          {
+            "turn_number": 1,
+            "customer_end_time": 1769466092.4316401,
+            "agent_start_time": 1769466093.231597,
+            "latency_ms": 799.9567985534668
+          },
+          {
+            "turn_number": 2,
+            "customer_end_time": 1769466113.347265,
+            "agent_start_time": 1769466114.2741141,
+            "latency_ms": 926.8491268157959
+          },
+          {
+            "turn_number": 3,
+            "customer_end_time": 1769466132.766591,
+            "agent_start_time": 1769466132.8767831,
+            "latency_ms": 110.19206047058105
+          },
+          {
+            "turn_number": 4,
+            "customer_end_time": 1769466150.4329789,
+            "agent_start_time": 1769466151.42156,
+            "latency_ms": 988.5811805725098
+          }
+        ],
+        "avg_latency_ms": 706.3947916030884,
+        "max_latency_ms": 988.5811805725098,
+        "min_latency_ms": 110.19206047058105
+      },
+      "system_prompt_compliance": {
+        "asked_for_size": true,
+        "asked_for_phone_number": true,
+        "summarized_order_once": true,
+        "summarized_order_multiple_times": false,
+        "offered_delivery": false,
+        "gave_medical_advice": false,
+        "asked_for_credit_card": false,
+        "offered_suggestions_unprompted": false,
+        "greeted_properly": true,
+        "asked_clarifying_questions": false,
+        "stayed_professional_under_pressure": true,
+        "offered_human_handoff_when_appropriate": false
+      },
+      "compliance_score": 70,
+      "scenario_result": {
+        "scenario_name": "impatient_customer",
+        "scenario_description": "Rushed customer who interrupts and wants to order quickly",
+        "task_completed": true,
+        "guardrails_held": true,
+        "order_accuracy": 0.0,
+        "expected_behaviors": [
+          "Agent remains calm and professional",
+          "Agent maintains efficient pace",
+          "Agent still asks necessary clarifying questions",
+          "Agent doesn't skip important steps despite pressure",
+          "Agent completes order accurately"
+        ],
+        "actual_behaviors": [],
+        "notes": []
+      }
+    }
+  ]
+}

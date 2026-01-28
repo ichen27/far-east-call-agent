@@ -9,23 +9,14 @@ import express from 'express';
 import { createServer } from 'http';
 import { Agent, run, tool } from '@openai/agents';
 import { z } from 'zod';
-import Database from 'better-sqlite3';
+// Use centralized database module with atomic operations for concurrency safety
+import { createOrderAtomic } from './database.js';
 
 console.log('OpenAI API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
-// Open database connection
-const db = new Database('fareast.db');
-db.pragma('foreign_keys = ON');
-
-// Generate order number
-function generateOrderNumber() {
-  const today = new Date().toISOString().slice(0, 10);
-  const countResult = db.prepare(`
-    SELECT COUNT(*) as count FROM orders
-    WHERE DATE(created_at) = DATE(?)
-  `).get(today);
-  return (countResult.count + 1).toString();
-}
+// NOTE: Order number generation has been moved to database.js
+// The createOrderAtomic() function handles order number generation atomically
+// within a transaction to prevent race conditions with concurrent orders
 
 const AGENT_INSTRUCTIONS = `
 # Personality
@@ -442,52 +433,22 @@ const submitOrder = tool({
   }),
   execute: async ({ phoneNumber, items, notes, totalPrice }) => {
     try {
-      const orderNumber = generateOrderNumber();
-
-      const insertOrder = db.prepare(`
-        INSERT INTO orders (order_number, phone_number, status, order_type, total, notes)
-        VALUES (?, ?, 'pending', 'pickup', ?, ?)
-      `);
-
-      const orderNotes = notes && notes.trim() ? notes : '';
-      const orderResult = insertOrder.run(
-        orderNumber,
+      // Use atomic database operation to prevent race conditions
+      // This generates the order number and inserts order + items in a single transaction
+      const { orderId, orderNumber } = createOrderAtomic({
         phoneNumber,
         totalPrice,
-        orderNotes
-      );
+        notes: notes && notes.trim() ? notes : '',
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          size: item.size === 'N/A' ? null : item.size,
+          price: item.price,
+          modifications: item.modifications || ''
+        }))
+      });
 
-      const orderId = orderResult.lastInsertRowid;
-
-      const insertItem = db.prepare(`
-        INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, size, unit_price, total, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const findMenuItem = db.prepare(`
-        SELECT id FROM menu_items WHERE name LIKE ? LIMIT 1
-      `);
-
-      for (const item of items) {
-        const menuItem = findMenuItem.get(`%${item.name}%`);
-        const menuItemId = menuItem ? menuItem.id : null;
-        const lineTotal = item.quantity * item.price;
-        const size = item.size === 'N/A' ? null : item.size;
-        const mods = item.modifications || '';
-
-        insertItem.run(
-          orderId,
-          menuItemId,
-          item.name,
-          item.quantity,
-          size,
-          item.price,
-          lineTotal,
-          mods
-        );
-      }
-
-      console.log('\n📝 NEW ORDER SAVED TO DATABASE:');
+      console.log('\nNEW ORDER SAVED TO DATABASE:');
       console.log(`   Order #: ${orderNumber}`);
       console.log(`   Phone: ${phoneNumber}`);
       console.log(`   Items (${items.length}):`);

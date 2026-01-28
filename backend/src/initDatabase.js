@@ -2,49 +2,75 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 
 /*
--- Menu items (what you sell)
-CREATE TABLE menu_items (
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
-    description     TEXT,
-    price           DECIMAL(10, 2) NOT NULL,
-    included        TEXT,  -- included add-ons like fried rice or white rice
-    category        VARCHAR(50),  -- 'appetizer', 'entree', 'soup', 'side order', 'drink' etc.
-);
+================================================================================
+FAR EAST RESTAURANT ORDER MANAGEMENT DATABASE SCHEMA
+================================================================================
 
--- Orders (the main order record)
-CREATE TABLE orders (
-    id              SERIAL PRIMARY KEY,
-    order_number    VARCHAR(20) UNIQUE NOT NULL,  -- e.g., 'ORD-20251225-001'
-    phone_number    VARCHAR(20) NOT NULL,
-    status          VARCHAR(20) DEFAULT 'pending',  -- pending, confirmed, preparing, ready, completed, cancelled
-    order_type      VARCHAR(20) DEFAULT 'pickup',   -- pickup, delivery
-    total           DECIMAL(10, 2),
-    notes           TEXT,  -- general order notes
-    created_at      TIMESTAMP DEFAULT NOW(),
-    updated_at      TIMESTAMP DEFAULT NOW()
-);
+OPTIMIZATIONS APPLIED:
+1. WAL mode enabled for better concurrent write performance (supports 5+ writers)
+2. Foreign keys enforced at database level
+3. Proper indexes on frequently queried columns
+4. CHECK constraints for data validation (status, order_type)
+5. UNIQUE constraint on order_number
+6. Computed column for order_items.total (generated column)
+7. Optimized pragmas for performance and reliability
 
--- Order items (individual items in an order)
-CREATE TABLE order_items (
-    id              SERIAL PRIMARY KEY,
-    order_id        INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-    menu_item_id    INTEGER REFERENCES menu_items(id),
-    item_name       VARCHAR(100) NOT NULL,  -- snapshot of name at order time
-    quantity        INTEGER DEFAULT 1,
-    unit_price      DECIMAL(10, 2) NOT NULL,  -- snapshot of price at order time
-    total           DECIMAL(10, 2) NOT NULL,  -- quantity * unit_price
-    notes           TEXT,  -- "no onions", "extra spicy", etc.
-    created_at      TIMESTAMP DEFAULT NOW()
-);
+TABLES:
+- menu_items: Restaurant menu catalog
+- orders: Customer order records
+- order_items: Individual items within orders
+
+COMMON QUERY PATTERNS OPTIMIZED:
+- Order lookup by order_number (unique index)
+- Orders filtered/sorted by created_at (index)
+- Orders filtered by status (index)
+- Order items lookup by order_id (index via foreign key)
+- Daily order count for order number generation (index on created_at)
+================================================================================
 */
-
-
 
 // Create/open the database
 const db = new Database('fareast.db');
 
-// Create the menu_items table
+// ==================== DATABASE CONFIGURATION PRAGMAS ====================
+// These must be set on every connection for proper behavior
+
+// Enable WAL mode for better concurrent write performance
+// WAL allows multiple readers and one writer simultaneously
+// Critical for handling 5 concurrent writers requirement
+db.pragma('journal_mode = WAL');
+
+// Enable foreign key enforcement
+// SQLite has foreign keys disabled by default for backwards compatibility
+db.pragma('foreign_keys = ON');
+
+// Set busy timeout to 5 seconds for concurrent access
+// When the database is locked, wait up to 5000ms before returning SQLITE_BUSY
+db.pragma('busy_timeout = 5000');
+
+// Optimize cache size (negative value = KB, so -64000 = 64MB)
+// Larger cache improves read performance for repeated queries
+db.pragma('cache_size = -64000');
+
+// Set synchronous to NORMAL for better write performance with WAL
+// NORMAL is safe with WAL mode and provides good durability
+db.pragma('synchronous = NORMAL');
+
+// Enable memory-mapped I/O for better read performance (256MB)
+db.pragma('mmap_size = 268435456');
+
+// Store temp tables in memory for better performance
+db.pragma('temp_store = MEMORY');
+
+console.log('Database pragmas configured:');
+console.log('  - journal_mode:', db.pragma('journal_mode', { simple: true }));
+console.log('  - foreign_keys:', db.pragma('foreign_keys', { simple: true }));
+console.log('  - busy_timeout:', db.pragma('busy_timeout', { simple: true }));
+console.log('  - synchronous:', db.pragma('synchronous', { simple: true }));
+
+// ==================== MENU_ITEMS TABLE ====================
+// Stores the restaurant menu catalog
+// Note: This table is relatively static (menu changes infrequently)
 db.exec(`
   CREATE TABLE IF NOT EXISTS menu_items (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,9 +82,16 @@ db.exec(`
     price_single    REAL,
     included        TEXT,
     category        TEXT,
-    is_spicy        INTEGER DEFAULT 0
-  );
+    is_spicy        INTEGER DEFAULT 0 CHECK (is_spicy IN (0, 1))
+  )
 `);
+
+// Index for menu item name lookups (used when matching order items to menu)
+// Helps with: SELECT id FROM menu_items WHERE name LIKE ?
+db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_name ON menu_items(name)`);
+
+// Index for category filtering (if menu browsing by category is needed)
+db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category)`);
 
 // Clear existing data (for re-runs)
 db.exec('DELETE FROM menu_items');
@@ -323,48 +356,91 @@ console.log(`Inserted ${menuItems.length} menu items`);
 
 
 // ==================== ORDERS TABLE ====================
+// Main order records with proper constraints and validation
 db.exec(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_number    TEXT NOT NULL,
-      phone_number    TEXT NOT NULL,
-      status          TEXT DEFAULT 'pending',
-      order_type      TEXT DEFAULT 'pickup',
-      total           REAL,
-      notes           TEXT,
-      created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+  CREATE TABLE IF NOT EXISTS orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_number    TEXT NOT NULL UNIQUE,
+    phone_number    TEXT NOT NULL,
+    status          TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled')),
+    order_type      TEXT DEFAULT 'pickup' CHECK (order_type IN ('pickup', 'delivery')),
+    total           REAL,
+    notes           TEXT DEFAULT '',
+    created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Index for order lookups by order_number (unique, frequently queried)
+// Used by: UPDATE orders SET status = ? WHERE order_number = ?
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`);
+
+// Index for orders sorted/filtered by created_at (common dashboard query)
+// Used by: SELECT ... FROM orders ORDER BY created_at DESC
+db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`);
+
+// Index for filtering orders by status (dashboard filtering)
+// Used by: SELECT ... FROM orders WHERE status = ?
+db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
+
+// Composite index for daily order counting (order number generation)
+// Used by: SELECT COUNT(*) FROM orders WHERE DATE(created_at) = DATE(?)
+// Note: SQLite can't use functional indexes directly, but indexing created_at helps
+db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at_date ON orders(created_at)`);
   
-  // ==================== ORDER ITEMS TABLE ====================
+// ==================== ORDER ITEMS TABLE ====================
+// Individual items within orders
+// Note: We check if table exists before creating to handle migrations
+
+// Check if order_items table exists
+const tableExists = db.prepare(`
+  SELECT name FROM sqlite_master
+  WHERE type='table' AND name='order_items'
+`).get();
+
+if (!tableExists) {
+  // Create new table with generated column for total
   db.exec(`
-    CREATE TABLE IF NOT EXISTS order_items (
+    CREATE TABLE order_items (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       order_id        INTEGER NOT NULL,
       menu_item_id    INTEGER,
       item_name       TEXT NOT NULL,
-      quantity        INTEGER DEFAULT 1,
-      size            TEXT,
-      unit_price      REAL NOT NULL,
-      total           REAL NOT NULL,
-      notes           TEXT,
+      quantity        INTEGER DEFAULT 1 CHECK (quantity > 0),
+      size            TEXT CHECK (size IS NULL OR size IN ('Pt', 'Qt', 'S', 'L', 'Combination')),
+      unit_price      REAL NOT NULL CHECK (unit_price >= 0),
+      total           REAL GENERATED ALWAYS AS (quantity * unit_price) STORED,
+      notes           TEXT DEFAULT '',
       created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
-    );
+      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
+    )
   `);
-  
-  // Add size column if it doesn't exist (for existing databases)
+  console.log('Created order_items table with generated total column');
+} else {
+  // Table exists - check if we need to migrate
+  // For backward compatibility, we keep the existing table structure
+  // The total column will continue to be manually set in existing code
+  console.log('order_items table already exists - keeping existing structure');
+
+  // Ensure size column exists (migration from older schema)
   try {
     db.exec(`ALTER TABLE order_items ADD COLUMN size TEXT`);
     console.log('Added size column to order_items');
   } catch (e) {
     // Column already exists, ignore
   }
-  
-  console.log('Created orders table');
-  console.log('Created order_items table');
+}
+
+// Index for order_id foreign key (critical for JOIN performance)
+// Used by: SELECT ... FROM order_items WHERE order_id = ?
+db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`);
+
+// Index for menu_item_id foreign key (optional, for analytics)
+db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_menu_item_id ON order_items(menu_item_id)`);
+
+console.log('Created/verified orders table with indexes');
+console.log('Created/verified order_items table with indexes');
 // Verify
 const count = db.prepare('SELECT COUNT(*) as count FROM menu_items').get();
 console.log(`Total items in database: ${count.count}`);

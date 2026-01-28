@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "run_id": "ae38f5e3",
+    "start_time": "2026-01-27T12:56:09.581875",
+    "end_time": "2026-01-27T12:57:09.058188",
+    "total_duration_seconds": 59.476313,
+    "total_calls": 1,
+    "report_generated": "2026-01-27T12:57:09.059091"
+  },
+  "summary": {
+    "performance": {
+      "avg_call_duration_seconds": 57.02,
+      "avg_latency_ms": 0.0,
+      "max_latency_ms": 0.0,
+      "min_latency_ms": 0
+    },
+    "compliance": {
+      "avg_score": 15.0,
+      "greeted_properly": "0/1",
+      "asked_for_size": "0/1",
+      "asked_for_phone": "0/1",
+      "summarized_order": "0/1"
+    },
+    "violations": {
+      "offered_delivery": 0,
+      "gave_medical_advice": 0,
+      "asked_for_credit_card": 0
+    },
+    "issues": {
+      "calls_with_no_transcript": 1,
+      "calls_timed_out": 0,
+      "calls_with_errors": 0,
+      "total_issues": 1
+    }
+  },
+  "calls": [
+    {
+      "call_id": "ae38f5e3-01-regular_or",
+      "scenario_name": "regular_order",
+      "start_time": 1769536570.960099,
+      "end_time": 1769536627.977599,
+      "duration_seconds": 57.017499923706055,
+      "turn_count": 0,
+      "disconnect_reason": "silence_monitor",
+      "transcript": [],
+      "latency_metrics": {
+        "measurements": [],
+        "avg_latency_ms": 0.0,
+        "max_latency_ms": 0.0,
+        "min_latency_ms": 0.0
+      },
+      "system_prompt_compliance": {
+        "asked_for_size": false,
+        "asked_for_phone_number": false,
+        "summarized_order_once": false,
+        "summarized_order_multiple_times": false,
+        "offered_delivery": false,
+        "gave_medical_advice": false,
+        "asked_for_credit_card": false,
+        "offered_suggestions_unprompted": false,
+        "greeted_properly": false,
+        "asked_clarifying_questions": false,
+        "stayed_professional_under_pressure": true,
+        "offered_human_handoff_when_appropriate": false
+      },
+      "compliance_score": 15,
+      "scenario_result": {
+        "scenario_name": "regular_order",
+        "scenario_description": "Straightforward customer placing a simple 2-3 item order",
+        "task_completed": true,
+        "guardrails_held": true,
+        "order_accuracy": 0.0,
+        "expected_behaviors": [
+          "Agent greets properly with restaurant name",
+          "Agent asks for size when applicable",
+          "Agent asks clarifying questions if needed",
+          "Agent summarizes order at the end",
+          "Agent asks for phone number at the end",
+          "Agent provides total and pickup time"
+        ],
+        "actual_behaviors": [],
+        "notes": []
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 // loads variables from .env into process.env
 dotenv.config();
-// Node.js web framework: handles HTTP routing, request/response management. 
+// Node.js web framework: handles HTTP routing, request/response management.
 // Using it to set up server end points
 import express from 'express';
 // ws is a lightweight websocket library
@@ -23,8 +23,10 @@ import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
 import { z } from 'zod';
 // Twillio's Node SDK
 import Twilio from 'twilio';
-import Database from 'better-sqlite3';
-import { broadcastNewOrder } from './socket.js';
+// Centralized database module with atomic operations for concurrency safety
+import { createOrderAtomic } from './database.js';
+// Reliable order broadcasting with queue and retry logic
+import { orderBroadcaster } from './orderBroadcaster.js';
 
 
 
@@ -34,13 +36,8 @@ console.log('API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 console.log('API Key loaded:', process.env.TWILIO_ACCOUNT_SID ? 'Yes' : 'No');
 console.log('API Key loaded:', process.env.TWILIO_AUTH_TOKEN ? 'Yes' : 'No');
 
-
-
-// Open database connection
-const db = new Database('fareast.db');
-db.pragma('foreign_keys = ON');
-
-
+// Track active calls for monitoring concurrent usage
+const activeCalls = new Map();
 
 // Twillio class constructor for accessing twillio methods
 // Creates a Twillio client using keys
@@ -53,18 +50,9 @@ const twilioClient = Twilio(
 );
 
 
-// Generate order number: simple incrementing number (1, 2, 3...) that resets daily
-function generateOrderNumber() {
-  const today = new Date().toISOString().slice(0, 10); // '2025-12-26'
-  
-  // Get count of orders created today
-  const countResult = db.prepare(`
-    SELECT COUNT(*) as count FROM orders 
-    WHERE DATE(created_at) = DATE(?)
-  `).get(today);
-  
-  return (countResult.count + 1).toString();
-}
+// NOTE: Order number generation has been moved to database.js
+// The createOrderAtomic() function handles order number generation atomically
+// within a transaction to prevent race conditions with concurrent callers
 
 // Creates an Express web application
 const app = express();
@@ -522,7 +510,25 @@ HOT & SPICY: We can alter the spice to suit your taste.
 // function takes in connection and twilio connection
 wss.on('connection', (twilioWs) => {
   let callSid = null;
-  
+  const connectionTime = Date.now();
+
+  console.log(`[Voice] New Twilio connection. Active calls: ${activeCalls.size}`);
+
+  // Handle connection close - cleanup
+  twilioWs.on('close', () => {
+    if (callSid) {
+      activeCalls.delete(callSid);
+      console.log(`[Voice] Call ${callSid} ended. Active calls: ${activeCalls.size}`);
+    }
+  });
+
+  twilioWs.on('error', (error) => {
+    console.error(`[Voice] WebSocket error for call ${callSid}:`, error.message);
+    if (callSid) {
+      activeCalls.delete(callSid);
+    }
+  });
+
   // Listen for the stream start to get callSid
   // Listens for message from Twillio
   // takes in message and the data that twilio passes in
@@ -534,7 +540,12 @@ wss.on('connection', (twilioWs) => {
       if (msg.event === 'start' && msg.start?.customParameters?.callSid) {
         // Saves the callSid for later use (like needing to hang up)
         callSid = msg.start.customParameters.callSid;
-        console.log('Got callSid:', callSid);
+        // Track active call
+        activeCalls.set(callSid, {
+          startTime: connectionTime,
+          status: 'active'
+        });
+        console.log(`[Voice] Call started: ${callSid}. Active calls: ${activeCalls.size}`);
       }
     } catch (e) {}
   });
@@ -621,57 +632,23 @@ wss.on('connection', (twilioWs) => {
     
       execute: async ({ phoneNumber, items, notes, totalPrice }) => {
         try {
-          // Generate unique order number
-          const orderNumber = generateOrderNumber();
-          
-          // Insert into orders table
-          const insertOrder = db.prepare(`
-            INSERT INTO orders (order_number, phone_number, status, order_type, total, notes)
-            VALUES (?, ?, 'pending', 'pickup', ?, ?)
-          `);
-          
-          const orderResult = insertOrder.run(
-            orderNumber,
+          // Use atomic database operation to prevent race conditions
+          // This generates the order number and inserts order + items in a single transaction
+          const { orderId, orderNumber } = createOrderAtomic({
             phoneNumber,
             totalPrice,
-            notes || ''
-          );
-          
-          const orderId = orderResult.lastInsertRowid;
-          
-          // Insert each item into order_items table
-          const insertItem = db.prepare(`
-            INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, size, unit_price, total, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          // Try to find menu_item_id by name (optional - helps link to menu)
-          const findMenuItem = db.prepare(`
-            SELECT id FROM menu_items WHERE name LIKE ? LIMIT 1
-          `);
-          
-          for (const item of items) {
-            // Try to match item name to menu_items table
-            const menuItem = findMenuItem.get(`%${item.name}%`);
-            const menuItemId = menuItem ? menuItem.id : null;
-            
-            // Calculate line total
-            const lineTotal = item.quantity * item.price;
-            
-            insertItem.run(
-              orderId,
-              menuItemId,
-              item.name,
-              item.quantity,
-              item.size || null,
-              item.price,
-              lineTotal,
-              item.modifications || ''
-            );
-          }
-          
+            notes: notes || '',
+            items: items.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              size: item.size || null,
+              price: item.price,
+              modifications: item.modifications || ''
+            }))
+          });
+
           // Log the order
-          console.log('📝 NEW ORDER SAVED TO DATABASE:');
+          console.log('NEW ORDER SAVED TO DATABASE:');
           console.log(`   Order #: ${orderNumber}`);
           console.log(`   Phone: ${phoneNumber}`);
           console.log(`   Items (${items.length}):`);
@@ -681,9 +658,10 @@ wss.on('connection', (twilioWs) => {
           });
           console.log(`   Total: $${totalPrice.toFixed(2)}`);
           console.log(`   Call SID: ${callSid}`);
+          console.log(`   Active calls: ${activeCalls.size}`);
 
-          // Broadcast order to connected frontend clients
-          broadcastNewOrder({
+          // Broadcast order to connected frontend clients using reliable broadcaster
+          await orderBroadcaster.broadcastOrder({
             orderNumber,
             phoneNumber,
             items: items.map(item => ({
@@ -697,9 +675,9 @@ wss.on('connection', (twilioWs) => {
             total: totalPrice,
             status: 'pending'
           });
-          
+
           return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}`;
-          
+
         } catch (error) {
           console.error('Failed to save order:', error);
           return `Order recorded. Total: $${totalPrice.toFixed(2)}`;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+  import { useWebSocket, type Order as WSOrder, type ConnectionState } from './Composables/useWebSocket'
 
   interface OrderItem {
     name: string
@@ -15,17 +16,43 @@
     phoneNumber: string
     timeOrdered: Date
     totalPrice: number
-    status: string 
+    status: string
   }
-  
+
   const orders = ref<Order[]>([])
   const viewMode = ref<'current' | 'history'>('current')
   const lastKnownOrderNumbers = ref<Set<string>>(new Set())
+  const usingPollingFallback = ref(false)
   let pollInterval: ReturnType<typeof setInterval> | null = null
 
   // Configure your backend URL - set this as an environment variable
-  const API_BASE_URL = 'https://fe-display.fareastbackend.us'
-  //const API_BASE_URL = 'http://localhost:8080'
+  //const API_BASE_URL = 'https://fe-display.fareastbackend.us'
+  const API_BASE_URL = 'http://localhost:8080'
+  const WS_URL = 'ws://localhost:8080'
+
+  // Polling configuration (fallback) - increased interval since it's backup
+  const POLL_INTERVAL_MS = 5000
+
+  // WebSocket composable with configuration
+  const {
+    connectionState,
+    isConnected,
+    lastError,
+    reconnectAttempts,
+    connect,
+    disconnect,
+    onNewOrder,
+    onStateChange,
+    onError
+  } = useWebSocket({
+    url: WS_URL,
+    initialReconnectDelay: 1000,
+    maxReconnectDelay: 30000,
+    maxReconnectAttempts: 10, // Fall back to polling after 10 failed attempts
+    heartbeatInterval: 30000,
+    heartbeatTimeout: 5000,
+    jitterFactor: 0.3,
+  })
 
   // Computed property to filter orders based on view mode
   const filteredOrders = computed(() => {
@@ -36,14 +63,55 @@
     }
   })
 
+  // Connection status display text
+  const connectionStatusText = computed(() => {
+    if (usingPollingFallback.value) {
+      return 'Polling'
+    }
+    switch (connectionState.value) {
+      case 'connected':
+        return 'Live'
+      case 'connecting':
+        return 'Connecting...'
+      case 'reconnecting':
+        return `Reconnecting (${reconnectAttempts.value})...`
+      case 'disconnected':
+        return 'Disconnected'
+      default:
+        return 'Unknown'
+    }
+  })
+
+  // Connection status class for styling
+  const connectionStatusClass = computed(() => {
+    if (usingPollingFallback.value) {
+      return 'polling'
+    }
+    return connectionState.value
+  })
+
+  /**
+   * Convert WebSocket order format to component order format
+   */
+  function wsOrderToOrder(wsOrder: WSOrder): Order {
+    return {
+      orderNumber: wsOrder.orderNumber,
+      items: wsOrder.items.map(item => ({ ...item, price: 0 })), // Add price field
+      phoneNumber: wsOrder.phoneNumber,
+      timeOrdered: new Date(wsOrder.time),
+      totalPrice: wsOrder.total,
+      status: wsOrder.status
+    }
+  }
+
   // Fetch orders and detect new ones
   async function fetchOrders() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/orders`)
       if (!response.ok) throw new Error('Failed to fetch orders')
-      
+
       const fetchedOrders = await response.json()
-      
+
       // Map the response to match Order interface
       const mappedOrders: Order[] = fetchedOrders.map((order: any) => ({
         orderNumber: order.orderNumber,
@@ -59,55 +127,149 @@
       const newOrders = mappedOrders.filter(
         o => !lastKnownOrderNumbers.value.has(o.orderNumber)
       )
-      
+
       if (newOrders.length > 0 && lastKnownOrderNumbers.value.size > 0) {
-        console.log(`🆕 ${newOrders.length} new order(s) detected!`)
-        // Optional: play a sound or show notification here
+        console.log(`[App] ${newOrders.length} new order(s) detected via REST`)
+        // Play notification for new orders
+        playOrderNotification()
       }
 
       // Update the orders list
       orders.value = mappedOrders
       lastKnownOrderNumbers.value = currentOrderNumbers
-      
+
     } catch (error) {
-      console.error('Failed to fetch orders:', error)
+      console.error('[App] Failed to fetch orders:', error)
     }
   }
 
-  // Start polling for orders
-  function startPolling(intervalMs = 3000) {
-    // Initial fetch
-    fetchOrders()
-    
+  /**
+   * Start polling fallback (when WebSocket fails)
+   */
+  function startPollingFallback(): void {
+    if (pollInterval) return // Already polling
+
+    usingPollingFallback.value = true
+    console.log('[App] Starting polling fallback')
+
     // Poll every N seconds
-    pollInterval = setInterval(fetchOrders, intervalMs)
-    console.log(`📡 Polling for orders every ${intervalMs / 1000}s`)
+    pollInterval = setInterval(fetchOrders, POLL_INTERVAL_MS)
   }
 
-  // Stop polling
-  function stopPolling() {
+  /**
+   * Stop polling fallback
+   */
+  function stopPollingFallback(): void {
     if (pollInterval) {
       clearInterval(pollInterval)
       pollInterval = null
-      console.log('⏹️ Stopped polling')
+      usingPollingFallback.value = false
+      console.log('[App] Stopped polling fallback')
     }
   }
 
+  /**
+   * Handle new order received via WebSocket
+   */
+  function handleNewOrder(wsOrder: WSOrder): void {
+    const order = wsOrderToOrder(wsOrder)
+
+    // Check if order already exists (update it) or add new
+    const existingIndex = orders.value.findIndex(o => o.orderNumber === order.orderNumber)
+
+    if (existingIndex >= 0) {
+      // Update existing order
+      orders.value[existingIndex] = order
+      console.log(`[App] Updated order: ${order.orderNumber}`)
+    } else {
+      // Add new order at the beginning
+      orders.value.unshift(order)
+      lastKnownOrderNumbers.value.add(order.orderNumber)
+      console.log(`[App] New order added via WebSocket: ${order.orderNumber}`)
+
+      // Play notification sound for new orders
+      playOrderNotification()
+    }
+  }
+
+  /**
+   * Handle connection state changes
+   */
+  function handleStateChange(state: ConnectionState): void {
+    console.log(`[App] WebSocket state: ${state}`)
+
+    if (state === 'connected') {
+      // WebSocket connected - stop polling if active
+      stopPollingFallback()
+    }
+  }
+
+  /**
+   * Handle WebSocket errors
+   */
+  function handleError(error: string): void {
+    console.error(`[App] WebSocket error: ${error}`)
+  }
+
+  /**
+   * Play a notification sound for new orders
+   */
+  function playOrderNotification(): void {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+
+      oscillator.frequency.value = 800
+      oscillator.type = 'sine'
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.3)
+    } catch (e) {
+      // Audio not supported or blocked
+    }
+  }
+
+  /**
+   * Manually retry WebSocket connection
+   */
+  function retryConnection(): void {
+    stopPollingFallback()
+    connect()
+  }
+
   // Load existing orders when component mounts
-  onMounted(() => {
-    startPolling(3000) // Poll every 3 seconds
+  onMounted(async () => {
+    // Initial load via REST API
+    await fetchOrders()
+
+    // Set up WebSocket event handlers
+    onNewOrder(handleNewOrder)
+    onStateChange(handleStateChange)
+    onError(handleError)
+
+    // Connect to WebSocket for real-time updates
+    connect()
   })
 
   // Clean up when component unmounts
   onUnmounted(() => {
-    stopPolling()
+    stopPollingFallback()
+    disconnect()
   })
 
-
-
-  defineProps<{
-    order: Order
-  }>()
+  // Watch for reconnection attempts to trigger fallback
+  watch(reconnectAttempts, (attempts) => {
+    if (attempts >= 10 && !usingPollingFallback.value) {
+      console.log('[App] Max reconnection attempts reached, switching to polling')
+      startPollingFallback()
+    }
+  })
 
   function formatDate(date: Date): Array<string> {
     const d = new Date(date)
@@ -139,11 +301,6 @@
     return `$${amount.toFixed(2)}`
   }
 
-      //const response = await fetch(`http://localhost:8080/api/orders/${order.orderNumber}/status`, {
-      //const response = await fetch(`http://fe-local-display/api/orders/${order.orderNumber}/status`, {
-
-
-  
   async function updateOrderStatus(order: Order, newStatus: string) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/orders/${order.orderNumber}/status`, {
@@ -151,7 +308,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
-      
+
       if (response.ok) {
         order.status = newStatus
       }
@@ -164,25 +321,43 @@
 
   <template>
     <div class="header">
-      <h1>Far East Chinese Restaurant <span class = "date">{{ todayDate }}</span></h1>
-      <div class="view-toggle">
-        <button 
-          :class="{ active: viewMode === 'current' }"
-          @click="viewMode = 'current'"
-        >
-          Current Orders
-        </button>
-        <button 
-          :class="{ active: viewMode === 'history' }"
-          @click="viewMode = 'history'"
-        >
-          History
-        </button>
+      <h1>Far East Chinese Restaurant <span class="date">{{ todayDate }}</span></h1>
+      <div class="header-controls">
+        <div class="connection-status" :class="connectionStatusClass">
+          <span class="status-dot"></span>
+          <span class="status-text">{{ connectionStatusText }}</span>
+          <button
+            v-if="connectionState === 'disconnected' && !usingPollingFallback"
+            class="retry-btn"
+            @click="retryConnection"
+          >
+            Retry
+          </button>
+        </div>
+        <div class="view-toggle">
+          <button
+            :class="{ active: viewMode === 'current' }"
+            @click="viewMode = 'current'"
+          >
+            Current Orders
+          </button>
+          <button
+            :class="{ active: viewMode === 'history' }"
+            @click="viewMode = 'history'"
+          >
+            History
+          </button>
+        </div>
       </div>
     </div>
-   
+
+    <!-- Error Banner -->
+    <div v-if="lastError && !isConnected && !usingPollingFallback" class="error-banner">
+      Connection issue: {{ lastError }}
+    </div>
+
     <div class="orders-container">
-      <div 
+      <div
         v-for="order in filteredOrders"
         :key="order.orderNumber"
         class="order-ticket"
@@ -193,7 +368,7 @@
 
           <span class="value">#{{ order.orderNumber }}</span>
         </div>
-        
+
 
 
         <!-- Divider -->
@@ -203,8 +378,8 @@
         <div class="ticket-section items">
           <span class="label">Items</span>
           <ul class="items-list">
-            <li 
-              v-for="(item, index) in order.items" 
+            <li
+              v-for="(item, index) in order.items"
               :key="index"
               class="item"
             >
@@ -253,7 +428,7 @@
         <!-- Toggle Status Button -->
         <!-- Order Number + Status Dropdown (combined) -->
         <div class="ticket-section order-status">
-          <select 
+          <select
             class="status-dropdown"
             :class="order.status"
             :value="order.status"
@@ -264,6 +439,12 @@
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-if="filteredOrders.length === 0" class="empty-state">
+        <p v-if="viewMode === 'current'">No current orders</p>
+        <p v-else>No order history</p>
       </div>
     </div>
   </template>
@@ -301,6 +482,82 @@
     margin-bottom: 0;
   }
 
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .connection-status.connected {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .connection-status.connecting,
+  .connection-status.reconnecting {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .connection-status.disconnected {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .connection-status.polling {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .retry-btn {
+    margin-left: 8px;
+    padding: 4px 12px;
+    border: 1px solid currentColor;
+    background: transparent;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: inherit;
+  }
+
+  .retry-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .error-banner {
+    width: 1280px;
+    margin: 0 auto 16px auto;
+    padding: 12px 16px;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #991b1b;
+    font-size: 14px;
+  }
+
   .view-toggle {
     display: flex;
     gap: 8px;
@@ -331,7 +588,7 @@
   .orders-container {
     display:flex;
     flex-direction: column;
-    gap: 16px; 
+    gap: 16px;
     padding: 20px;
     background: #ffffff;
     border: 1px solid #e0e0e0;
@@ -372,6 +629,18 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
     padding: 16px 0;
     gap: 0;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .ticket-section {
@@ -424,7 +693,7 @@
 
   .items-list {
     list-style: disc;
-    padding-left: 0; 
+    padding-left: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
@@ -448,7 +717,7 @@
   }
 
   .item-main::before {
-    content: "•";
+    content: "\2022";
     color: #666;
     margin-right: 4px;
   }
@@ -469,13 +738,13 @@
     font-size: 14px;
     color: #333;
   }
-  
+
   .item-size {
     font-size: 13px;
     color: #666;
     font-weight: 500;
   }
-  
+
   .item-mods {
     font-size: 13px;
     color: #888;
@@ -555,5 +824,14 @@
 
   .status-dropdown:hover {
     opacity: 0.9;
+  }
+
+  .empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    color: #888;
+    font-size: 16px;
   }
   </style>

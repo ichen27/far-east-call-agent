@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "run_id": "2a2e9fef",
+    "start_time": "2026-01-24T13:51:57.460860",
+    "end_time": "2026-01-24T13:58:02.973486",
+    "total_duration_seconds": 365.512626,
+    "total_calls": 0,
+    "report_generated": "2026-01-24T13:58:02.974177"
+  },
+  "summary": {
+    "performance": {
+      "avg_call_duration_seconds": 0,
+      "avg_latency_ms": 0,
+      "max_latency_ms": 0,
+      "min_latency_ms": 0
+    },
+    "compliance": {
+      "avg_score": 0,
+      "greeted_properly": "0/0",
+      "asked_for_size": "0/0",
+      "asked_for_phone": "0/0",
+      "summarized_order": "0/0"
+    },
+    "violations": {
+      "offered_delivery": 0,
+      "gave_medical_advice": 0,
+      "asked_for_credit_card": 0
+    }
+  },
+  "calls": []
+}

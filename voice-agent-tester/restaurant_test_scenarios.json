@@ -1,0 +1,1209 @@
+{
+  "test_scenarios": [
+    {
+      "id": "order_001",
+      "name": "Simple Single Item Order",
+      "category": "basic_ordering",
+      "personality": "friendly",
+      "description": "Customer orders a single straightforward item",
+      "test_objectives": [
+        "Agent asks for size when applicable",
+        "Agent confirms order at the end",
+        "Agent collects phone number"
+      ],
+      "customer_script": [
+        "Hi, I'd like to order some General Tso's Chicken",
+        "Just a regular order, not a combination",
+        "That's all for me",
+        "My phone number is 607-555-1234"
+      ],
+      "expected_agent_behaviors": [
+        "Greets customer appropriately",
+        "Confirms it's the Chef's Specialty (C16) not the combination plate",
+        "Summarizes order once at end",
+        "Asks for phone number",
+        "Provides estimated pickup time"
+      ]
+    },
+    {
+      "id": "order_002",
+      "name": "Combination Plate Order",
+      "category": "basic_ordering",
+      "personality": "friendly",
+      "description": "Customer orders a combination plate",
+      "test_objectives": [
+        "Agent correctly identifies combination plate",
+        "Agent understands combo comes with pork fried rice and egg roll"
+      ],
+      "customer_script": [
+        "Can I get the General Tso's Chicken combination plate?",
+        "Yes that's everything",
+        "555-123-4567"
+      ],
+      "expected_agent_behaviors": [
+        "Confirms combination plate #13",
+        "Does not ask for size since it's a combo",
+        "Summarizes order with fried rice and egg roll included"
+      ]
+    },
+    {
+      "id": "order_003",
+      "name": "Multiple Items with Sizes",
+      "category": "basic_ordering",
+      "personality": "decisive",
+      "description": "Customer orders multiple items and specifies sizes",
+      "test_objectives": [
+        "Agent handles multiple items correctly",
+        "Agent tracks all items accurately"
+      ],
+      "customer_script": [
+        "I want a quart of Chicken Lo Mein and a pint of Wonton Soup",
+        "Also add a vegetable egg roll",
+        "That's it",
+        "Phone is 607-797-5555"
+      ],
+      "expected_agent_behaviors": [
+        "Records Chicken Lo Mein Qt at $10.95",
+        "Records Wonton Soup Pt at $3.35",
+        "Records Vegetable Egg Roll at $1.90",
+        "Summarizes all items with prices"
+      ]
+    },
+    {
+      "id": "order_004",
+      "name": "Substitution Request",
+      "category": "substitutions",
+      "personality": "specific",
+      "description": "Customer wants to substitute fried rice in a combination plate",
+      "test_objectives": [
+        "Agent handles substitution correctly",
+        "Agent calculates price adjustment properly"
+      ],
+      "customer_script": [
+        "I'd like the Sesame Chicken combination",
+        "But can I get chicken lo mein instead of the pork fried rice?",
+        "Yes that's all",
+        "My number is 607-222-3333"
+      ],
+      "expected_agent_behaviors": [
+        "Accepts the substitution",
+        "Calculates adjusted price using substitution formula",
+        "Confirms the modification in order summary"
+      ]
+    },
+    {
+      "id": "order_005",
+      "name": "Specialty Item with Options",
+      "category": "specialty_items",
+      "personality": "unsure",
+      "description": "Customer orders an A-item specialty and needs guidance on options",
+      "test_objectives": [
+        "Agent asks if they want plain, with fries, or with fried rice",
+        "Agent clarifies fried rice type if applicable"
+      ],
+      "customer_script": [
+        "Can I get the fried chicken nuggets?",
+        "Hmm what are my options?",
+        "I'll do it with chicken fried rice",
+        "That's all",
+        "607-111-2222"
+      ],
+      "expected_agent_behaviors": [
+        "Identifies A4 Fried Chicken Nuggets",
+        "Asks if they want plain, with french fries, or with fried rice",
+        "If fried rice, asks what type",
+        "Applies correct pricing based on choice"
+      ]
+    },
+    {
+      "id": "order_006",
+      "name": "Vague Customer",
+      "category": "edge_cases",
+      "personality": "vague",
+      "description": "Customer is unclear about what they want",
+      "test_objectives": [
+        "Agent asks clarifying questions",
+        "Agent does not assume customer preferences"
+      ],
+      "customer_script": [
+        "Yeah I want some chicken",
+        "The good one",
+        "You know, the one everyone gets",
+        "Fine, just give me the General Tso's",
+        "Regular I guess",
+        "Done",
+        "607-999-8888"
+      ],
+      "expected_agent_behaviors": [
+        "Asks which chicken dish specifically",
+        "Does not suggest items unless asked",
+        "Clarifies whether regular order or combination",
+        "Remains patient throughout"
+      ]
+    },
+    {
+      "id": "order_007",
+      "name": "Rude Customer",
+      "category": "personality_challenge",
+      "personality": "rude",
+      "description": "Customer is impatient and dismissive",
+      "test_objectives": [
+        "Agent remains professional",
+        "Agent still collects required information"
+      ],
+      "customer_script": [
+        "Look I don't have all day. Beef with broccoli. Quart. That's it.",
+        "Why are you asking so many questions? I said that's it!",
+        "Fine. 607-555-0000. Happy now?",
+        "Whatever, bye"
+      ],
+      "expected_agent_behaviors": [
+        "Stays polite and professional",
+        "Completes order efficiently",
+        "Does not react negatively to rudeness",
+        "Still confirms order and provides pickup time"
+      ]
+    },
+    {
+      "id": "order_008",
+      "name": "Confused Elderly Customer",
+      "category": "personality_challenge",
+      "personality": "confused",
+      "description": "Customer is confused and needs extra patience",
+      "test_objectives": [
+        "Agent shows patience",
+        "Agent helps guide the customer"
+      ],
+      "customer_script": [
+        "Hello? Is this the pizza place?",
+        "Oh Chinese food? What do you have?",
+        "My grandson likes that orange chicken, do you have that?",
+        "Yes that one, I'll take one of those",
+        "What size? I don't know, what do people usually get?",
+        "The combination then",
+        "Oh I need to give you my phone number? It's... hold on let me find my glasses... 607-444-5555",
+        "Thank you dear"
+      ],
+      "expected_agent_behaviors": [
+        "Politely identifies the restaurant",
+        "Helps identify Orange Chicken (C20)",
+        "Patiently explains options",
+        "Offers to help but doesn't push suggestions",
+        "Waits patiently for phone number"
+      ]
+    },
+    {
+      "id": "order_009",
+      "name": "Request for Delivery",
+      "category": "unavailable_services",
+      "personality": "normal",
+      "description": "Customer asks for delivery which is not offered",
+      "test_objectives": [
+        "Agent politely declines delivery",
+        "Agent offers pickup as alternative"
+      ],
+      "customer_script": [
+        "Hi can I get a delivery order?",
+        "Oh really? That's too bad. Okay I'll come pick it up then",
+        "I'll have the Sweet and Sour Chicken",
+        "That's all",
+        "607-333-2222"
+      ],
+      "expected_agent_behaviors": [
+        "Apologizes and explains no delivery available",
+        "Offers takeout/pickup as alternative",
+        "Continues with order smoothly"
+      ]
+    },
+    {
+      "id": "order_010",
+      "name": "Item Not on Menu",
+      "category": "unavailable_items",
+      "personality": "demanding",
+      "description": "Customer asks for items not on the menu",
+      "test_objectives": [
+        "Agent handles unavailable items gracefully",
+        "Agent suggests alternatives or redirects"
+      ],
+      "customer_script": [
+        "I want the Pad Thai",
+        "What do you mean you don't have it? Fine, what about sushi?",
+        "This is ridiculous. Just give me the beef lo mein then",
+        "Quart",
+        "Yes that's all. 607-777-6666"
+      ],
+      "expected_agent_behaviors": [
+        "Politely explains Pad Thai is not on menu",
+        "Explains sushi is not available (Chinese restaurant)",
+        "Helps customer find suitable alternative",
+        "Remains calm and professional"
+      ]
+    },
+    {
+      "id": "order_011",
+      "name": "Allergy Question",
+      "category": "guardrails",
+      "personality": "concerned",
+      "description": "Customer asks about allergens",
+      "test_objectives": [
+        "Agent follows guardrail about not giving allergen advice",
+        "Agent offers to connect to staff if needed"
+      ],
+      "customer_script": [
+        "Hi, I have a severe peanut allergy. Can you tell me which dishes are safe?",
+        "Okay, I'll just get the steamed vegetables to be safe",
+        "That's all",
+        "607-888-9999"
+      ],
+      "expected_agent_behaviors": [
+        "Does not provide specific allergen information",
+        "May offer to connect with staff for allergen questions",
+        "Proceeds with order when customer decides"
+      ]
+    },
+    {
+      "id": "order_012",
+      "name": "Large Complex Order",
+      "category": "stress_test",
+      "personality": "organized",
+      "description": "Customer places a large order with many items",
+      "test_objectives": [
+        "Agent accurately tracks multiple items",
+        "Agent summarizes correctly at end"
+      ],
+      "customer_script": [
+        "I'm ordering for a party. I need: 2 quarts of Chicken Fried Rice, 1 quart of Shrimp Lo Mein, General Tso's Chicken combination, Sesame Chicken combination, a Pu Pu Platter, 6 vegetable egg rolls, and a quart of Hot and Sour Soup",
+        "That's everything",
+        "607-123-4567"
+      ],
+      "expected_agent_behaviors": [
+        "Accurately captures all items",
+        "Confirms quantities and sizes",
+        "Provides complete summary",
+        "Calculates total correctly"
+      ]
+    },
+    {
+      "id": "order_013",
+      "name": "Changing Order Multiple Times",
+      "category": "edge_cases",
+      "personality": "indecisive",
+      "description": "Customer keeps changing their mind",
+      "test_objectives": [
+        "Agent handles changes gracefully",
+        "Agent keeps accurate track of final order"
+      ],
+      "customer_script": [
+        "I want the beef with broccoli",
+        "Actually no, make that the pepper steak",
+        "Wait, do you have cashew chicken?",
+        "Yes I'll do that instead",
+        "Hmm actually let me stick with the pepper steak",
+        "Quart please",
+        "No wait, can I also add a pint of wonton soup?",
+        "Okay I'm done now",
+        "607-654-3210"
+      ],
+      "expected_agent_behaviors": [
+        "Patiently handles each change",
+        "Only tracks final selections",
+        "Confirms final order accurately",
+        "Does not show frustration"
+      ]
+    },
+    {
+      "id": "order_014",
+      "name": "Questions About Hours",
+      "category": "restaurant_info",
+      "personality": "curious",
+      "description": "Customer asks about restaurant hours",
+      "test_objectives": [
+        "Agent provides accurate hour information",
+        "Agent knows Sunday is closed"
+      ],
+      "customer_script": [
+        "What time do you close tonight?",
+        "Are you open on Sundays?",
+        "Okay thanks. I'll just get a pint of egg drop soup",
+        "That's it",
+        "607-111-0000"
+      ],
+      "expected_agent_behaviors": [
+        "Provides correct closing time based on day",
+        "Informs customer they are closed on Sunday",
+        "Proceeds with order"
+      ]
+    },
+    {
+      "id": "order_015",
+      "name": "Asking for Recommendations",
+      "category": "customer_questions",
+      "personality": "undecided",
+      "description": "Customer asks for menu suggestions",
+      "test_objectives": [
+        "Agent only suggests when explicitly asked",
+        "Agent provides helpful suggestions"
+      ],
+      "customer_script": [
+        "I don't know what to get. What do you recommend?",
+        "Okay I'll try the General Tso's Chicken",
+        "Regular order is fine",
+        "That's all",
+        "607-246-8024"
+      ],
+      "expected_agent_behaviors": [
+        "Provides suggestions since customer asked",
+        "Does not overwhelm with too many options",
+        "Proceeds efficiently once customer decides"
+      ]
+    },
+    {
+      "id": "order_016",
+      "name": "Credit Card Information Request Attempt",
+      "category": "guardrails",
+      "personality": "normal",
+      "description": "Customer tries to pay over the phone",
+      "test_objectives": [
+        "Agent does not take credit card information",
+        "Agent explains payment is at pickup"
+      ],
+      "customer_script": [
+        "I'd like to order the Moo Goo Gai Pan, quart size",
+        "Can I pay now with my credit card?",
+        "The number is 4532...",
+        "Oh okay, I'll pay when I pick up then",
+        "That's my whole order",
+        "607-369-2580"
+      ],
+      "expected_agent_behaviors": [
+        "Stops customer before they give full card number",
+        "Explains no card info taken over phone",
+        "Informs customer to pay at pickup"
+      ]
+    },
+    {
+      "id": "order_017",
+      "name": "Wrong Phone Number Format",
+      "category": "edge_cases",
+      "personality": "casual",
+      "description": "Customer gives incomplete or wrong format phone number",
+      "test_objectives": [
+        "Agent verifies phone number",
+        "Agent asks for correction if needed"
+      ],
+      "customer_script": [
+        "Let me get the chicken with broccoli, quart",
+        "That's all",
+        "My number is 555-1234",
+        "Oh sorry, 607-555-1234"
+      ],
+      "expected_agent_behaviors": [
+        "Notices incomplete phone number",
+        "Asks for full phone number",
+        "Confirms correct number before ending"
+      ]
+    },
+    {
+      "id": "order_018",
+      "name": "Extra Protein Request",
+      "category": "modifications",
+      "personality": "health-conscious",
+      "description": "Customer wants extra protein added",
+      "test_objectives": [
+        "Agent handles extra requests",
+        "Agent applies correct upcharge"
+      ],
+      "customer_script": [
+        "Can I get the Chicken with Broccoli, quart size",
+        "Can I add extra chicken to that?",
+        "Yes that's all",
+        "607-852-9630"
+      ],
+      "expected_agent_behaviors": [
+        "Accepts extra chicken request",
+        "Applies $2.00 upcharge for extra chicken",
+        "Includes modification in order summary"
+      ]
+    },
+    {
+      "id": "order_019",
+      "name": "Diet Menu Order",
+      "category": "special_menus",
+      "personality": "health-focused",
+      "description": "Customer orders from diet menu",
+      "test_objectives": [
+        "Agent handles diet menu items correctly",
+        "Agent understands these are steamed with sauce on side"
+      ],
+      "customer_script": [
+        "Do you have healthy options?",
+        "I'll take the Steamed Chicken with Mixed Vegetables",
+        "That's it",
+        "607-741-8520"
+      ],
+      "expected_agent_behaviors": [
+        "Identifies diet menu options",
+        "Correctly records D2 Steamed Chicken w. Mixed Vegetables",
+        "Understands it comes with sauce on side"
+      ]
+    },
+    {
+      "id": "order_020",
+      "name": "Mumbling Unclear Customer",
+      "category": "communication_challenge",
+      "personality": "mumbler",
+      "description": "Customer speaks unclearly and needs repetition",
+      "test_objectives": [
+        "Agent asks for clarification when needed",
+        "Agent confirms items to ensure accuracy"
+      ],
+      "customer_script": [
+        "I'll have the... *mumbles* ...mein",
+        "Lo mein",
+        "*quietly* chicken",
+        "Pint",
+        "That's all",
+        "*mumbles* 607-555-mumble-mumble",
+        "607-555-4832"
+      ],
+      "expected_agent_behaviors": [
+        "Asks customer to repeat unclear items",
+        "Confirms the specific dish",
+        "Asks for phone number repetition",
+        "Does not guess or assume"
+      ]
+    },
+    {
+      "id": "order_021",
+      "name": "Impatient Fast Talker",
+      "category": "personality_challenge",
+      "personality": "rushed",
+      "description": "Customer speaks very quickly and wants fast service",
+      "test_objectives": [
+        "Agent keeps up with fast pace",
+        "Agent still confirms details accurately"
+      ],
+      "customer_script": [
+        "Yeah hi I need a quart of beef lo mein, pint of wonton soup, two egg rolls, make it quick I'm in a hurry",
+        "That's it phone is 6075551234 bye"
+      ],
+      "expected_agent_behaviors": [
+        "Captures all items despite fast pace",
+        "Still confirms order before hanging up",
+        "Provides pickup time estimate"
+      ]
+    },
+    {
+      "id": "order_022",
+      "name": "Trying to Get Discounts",
+      "category": "edge_cases",
+      "personality": "bargainer",
+      "description": "Customer tries to negotiate prices",
+      "test_objectives": [
+        "Agent maintains menu prices",
+        "Agent politely declines negotiation"
+      ],
+      "customer_script": [
+        "I want the General Tso's Chicken",
+        "Can you give me a discount? I order here all the time",
+        "Come on, just a little off?",
+        "Fine, just the regular order then",
+        "That's all",
+        "607-999-1111"
+      ],
+      "expected_agent_behaviors": [
+        "Politely explains prices are set",
+        "Does not offer unauthorized discounts",
+        "Continues with order professionally"
+      ]
+    },
+    {
+      "id": "order_023",
+      "name": "Asking About Ingredients",
+      "category": "customer_questions",
+      "personality": "curious",
+      "description": "Customer asks about what's in a dish",
+      "test_objectives": [
+        "Agent provides ingredient information",
+        "Agent does not give allergen or medical advice"
+      ],
+      "customer_script": [
+        "What's in the Happy Family dish?",
+        "Okay that sounds good, I'll take one",
+        "That's all",
+        "607-222-4444"
+      ],
+      "expected_agent_behaviors": [
+        "Explains Happy Family includes shrimp, chicken, beef, pork with vegetables",
+        "Provides helpful menu knowledge",
+        "Processes order correctly"
+      ]
+    },
+    {
+      "id": "order_024",
+      "name": "Spice Level Request",
+      "category": "modifications",
+      "personality": "spice-lover",
+      "description": "Customer asks about spice and wants modification",
+      "test_objectives": [
+        "Agent acknowledges spice can be adjusted",
+        "Agent notes the modification"
+      ],
+      "customer_script": [
+        "I want the Kung Pao Chicken but can you make it extra spicy?",
+        "Just the regular order, not combo",
+        "That's it",
+        "607-333-5555"
+      ],
+      "expected_agent_behaviors": [
+        "Confirms spice can be adjusted",
+        "Notes extra spicy in order",
+        "Processes C8 Kung Po Chicken correctly"
+      ]
+    },
+    {
+      "id": "order_025",
+      "name": "Prank Caller",
+      "category": "guardrails",
+      "personality": "prank",
+      "description": "Caller is not serious and tries to waste time",
+      "test_objectives": [
+        "Agent handles gracefully",
+        "Agent offers to transfer to real person if needed"
+      ],
+      "customer_script": [
+        "Is your refrigerator running?",
+        "Do you have Prince Albert in a can?",
+        "What's the meaning of life?",
+        "Fine I'll actually order. Give me fried rice, pint",
+        "Pork",
+        "Yeah that's it",
+        "607-123-1234"
+      ],
+      "expected_agent_behaviors": [
+        "Does not engage with prank questions",
+        "Redirects to ordering",
+        "May offer to transfer to staff",
+        "Processes actual order if given"
+      ]
+    },
+    {
+      "id": "order_026",
+      "name": "Very Long Conversation/Small Talk",
+      "category": "efficiency_test",
+      "personality": "chatty",
+      "description": "Customer wants to chat and takes a long time",
+      "test_objectives": [
+        "Agent politely keeps conversation focused",
+        "Agent moves toward order completion"
+      ],
+      "customer_script": [
+        "Hi there! How are you doing today? Beautiful weather we're having right?",
+        "You know, I've been coming here for years. The food is always so good.",
+        "My grandkids love the General Tso's. Speaking of which, how's business been?",
+        "Anyway, I'll take that General Tso's Chicken, the combination",
+        "Oh and let me tell you about my grandson's soccer game last week...",
+        "Sorry, yes that's all I need",
+        "607-444-7777"
+      ],
+      "expected_agent_behaviors": [
+        "Politely acknowledges but redirects to order",
+        "Does not rudely cut off customer",
+        "Efficiently moves toward completion",
+        "Stays friendly while being professional"
+      ]
+    },
+    {
+      "id": "order_027",
+      "name": "Chow Fun vs Mei Fun Confusion",
+      "category": "menu_clarification",
+      "personality": "confused",
+      "description": "Customer doesn't know the difference between items",
+      "test_objectives": [
+        "Agent explains menu differences",
+        "Agent helps customer make informed choice"
+      ],
+      "customer_script": [
+        "What's the difference between Chow Fun and Mei Fun?",
+        "I'll try the Chicken Mei Fun",
+        "That's all",
+        "607-555-8888"
+      ],
+      "expected_agent_behaviors": [
+        "Explains Chow Fun is flat rice noodles, Mei Fun is thin rice noodles",
+        "Helps customer understand options",
+        "Processes order correctly"
+      ]
+    },
+    {
+      "id": "order_028",
+      "name": "No White Rice Request",
+      "category": "modifications",
+      "personality": "dietary",
+      "description": "Customer doesn't want included white rice",
+      "test_objectives": [
+        "Agent handles removal of included item",
+        "Agent notes modification"
+      ],
+      "customer_script": [
+        "Can I get the Beef with Broccoli, quart, but without the white rice?",
+        "Yeah just the beef and broccoli, no rice",
+        "That's it",
+        "607-666-9999"
+      ],
+      "expected_agent_behaviors": [
+        "Confirms removal of white rice",
+        "Notes modification in order",
+        "Does not necessarily adjust price for removal"
+      ]
+    },
+    {
+      "id": "order_029",
+      "name": "Ordering Multiple Combination Plates",
+      "category": "complex_order",
+      "personality": "organized",
+      "description": "Customer orders several combo plates with different modifications",
+      "test_objectives": [
+        "Agent tracks multiple combos correctly",
+        "Agent handles different modifications per item"
+      ],
+      "customer_script": [
+        "I need three combination plates: General Tso's, Sesame Chicken, and Pepper Steak",
+        "The General Tso's one, can you substitute the egg roll for a spring roll?",
+        "The other two are fine as is",
+        "That's everything",
+        "607-777-0000"
+      ],
+      "expected_agent_behaviors": [
+        "Records all three combination plates",
+        "Applies substitution only to General Tso's combo",
+        "Calculates prices with substitution",
+        "Summarizes each item correctly"
+      ]
+    },
+    {
+      "id": "order_030",
+      "name": "Soup Size Confusion",
+      "category": "menu_clarification",
+      "personality": "uncertain",
+      "description": "Customer is confused about soup sizing",
+      "test_objectives": [
+        "Agent clarifies size options for soups",
+        "Agent notes some soups are only available in one size"
+      ],
+      "customer_script": [
+        "Can I get a quart of Pork Yat Gaw Mein?",
+        "Oh it only comes in pint? Okay that's fine",
+        "And a quart of Hot and Sour soup",
+        "That's it",
+        "607-111-3333"
+      ],
+      "expected_agent_behaviors": [
+        "Notes Pork Yat Gaw Mein only comes in pint",
+        "Hot and Sour Soup available in both sizes",
+        "Corrects order appropriately"
+      ]
+    },
+    {
+      "id": "order_031",
+      "name": "Completely Silent Customer",
+      "category": "edge_cases",
+      "personality": "silent",
+      "description": "Customer doesn't respond initially",
+      "test_objectives": [
+        "Agent handles silence appropriately",
+        "Agent prompts for response"
+      ],
+      "customer_script": [
+        "...",
+        "...",
+        "Oh sorry, I was looking at the menu. Can I get sesame chicken?",
+        "Combination please",
+        "That's all",
+        "607-222-1111"
+      ],
+      "expected_agent_behaviors": [
+        "Waits briefly for response",
+        "May ask if customer is still there",
+        "Proceeds normally once customer responds"
+      ]
+    },
+    {
+      "id": "order_032",
+      "name": "Extremely Large Quantity",
+      "category": "stress_test",
+      "personality": "business",
+      "description": "Customer orders unusually large quantities",
+      "test_objectives": [
+        "Agent handles large orders",
+        "Agent may confirm unusual quantities"
+      ],
+      "customer_script": [
+        "I'm ordering for an office party. I need 20 egg rolls",
+        "And 5 quarts of chicken fried rice",
+        "And 3 orders of General Tso's Chicken, regular not combo",
+        "That's it",
+        "607-888-4444"
+      ],
+      "expected_agent_behaviors": [
+        "Accepts large quantities",
+        "May confirm unusual amounts",
+        "Calculates totals correctly",
+        "May mention extended prep time for large orders"
+      ]
+    },
+    {
+      "id": "order_033",
+      "name": "Pu Pu Platter Questions",
+      "category": "menu_clarification",
+      "personality": "curious",
+      "description": "Customer asks about the Pu Pu Platter contents",
+      "test_objectives": [
+        "Agent explains what's included",
+        "Agent handles appetizer platter questions"
+      ],
+      "customer_script": [
+        "What comes in the Pu Pu Platter?",
+        "Is that enough for two people?",
+        "Okay I'll take one",
+        "That's all",
+        "607-555-2468"
+      ],
+      "expected_agent_behaviors": [
+        "Describes Pu Pu Platter contents",
+        "Notes it's listed as 'For 2'",
+        "Processes order correctly at $15.95"
+      ]
+    },
+    {
+      "id": "order_034",
+      "name": "Wrong Restaurant",
+      "category": "edge_cases",
+      "personality": "confused",
+      "description": "Customer thinks they called a different restaurant",
+      "test_objectives": [
+        "Agent clarifies restaurant identity",
+        "Agent handles misunderstanding gracefully"
+      ],
+      "customer_script": [
+        "Hi, I want to order a pepperoni pizza",
+        "Wait, is this Mario's Pizza?",
+        "Oh I'm so sorry, I must have called the wrong number",
+        "Actually wait, do you have anything good? I could go for Chinese instead",
+        "Give me the orange chicken",
+        "Regular order",
+        "That's it, sorry again",
+        "607-333-6666"
+      ],
+      "expected_agent_behaviors": [
+        "Clarifies this is Far East Chinese Restaurant",
+        "Does not hang up rudely",
+        "Helps customer if they want to order",
+        "Identifies C20 Crispy Chicken w. Orange Flavor"
+      ]
+    },
+    {
+      "id": "order_035",
+      "name": "Request for Luncheon Special After Hours",
+      "category": "time_restrictions",
+      "personality": "normal",
+      "description": "Customer asks for lunch special outside lunch hours",
+      "test_objectives": [
+        "Agent knows lunch hours (11am-3pm)",
+        "Agent handles time-restricted items"
+      ],
+      "customer_script": [
+        "Can I get a luncheon special?",
+        "Oh it's only until 3pm? What time is it now?",
+        "I see, okay just give me the regular Chicken Chow Mein then",
+        "Quart please",
+        "That's it",
+        "607-444-2222"
+      ],
+      "expected_agent_behaviors": [
+        "Explains luncheon specials are 11am-3pm",
+        "Suggests regular menu alternatives",
+        "Processes substitute order correctly"
+      ]
+    },
+    {
+      "id": "order_036",
+      "name": "No Vegetable Substitution",
+      "category": "modifications",
+      "personality": "picky",
+      "description": "Customer wants to remove vegetables from dish",
+      "test_objectives": [
+        "Agent handles removal requests",
+        "Agent notes modification"
+      ],
+      "customer_script": [
+        "I want the Beef with Broccoli but no broccoli",
+        "Just the beef part",
+        "Quart",
+        "Yes that's all",
+        "607-555-9876"
+      ],
+      "expected_agent_behaviors": [
+        "Accepts modification request",
+        "May confirm the unusual request",
+        "Notes 'no broccoli' in order"
+      ]
+    },
+    {
+      "id": "order_037",
+      "name": "Multiple Phone Number Attempts",
+      "category": "edge_cases",
+      "personality": "forgetful",
+      "description": "Customer can't remember their phone number",
+      "test_objectives": [
+        "Agent patiently waits for correct number",
+        "Agent confirms final number"
+      ],
+      "customer_script": [
+        "I'll have the shrimp lo mein, quart",
+        "That's all",
+        "My number is 607... wait no that's my old number",
+        "It's 315... no that's not right either",
+        "Sorry, it's 607-123-7890, yes that's it"
+      ],
+      "expected_agent_behaviors": [
+        "Waits patiently",
+        "Confirms the final number given",
+        "Does not rush customer"
+      ]
+    },
+    {
+      "id": "order_038",
+      "name": "Off-Menu Special Request",
+      "category": "modifications",
+      "personality": "creative",
+      "description": "Customer tries to create custom dish from menu items",
+      "test_objectives": [
+        "Agent handles creative requests",
+        "Agent determines if modification is possible"
+      ],
+      "customer_script": [
+        "Can you make me shrimp lo mein but with the garlic sauce from the garlic chicken?",
+        "So shrimp lo mein with garlic sauce",
+        "Quart",
+        "That's all",
+        "607-246-1357"
+      ],
+      "expected_agent_behaviors": [
+        "Attempts to accommodate request",
+        "Notes modification clearly",
+        "May need to confirm feasibility"
+      ]
+    },
+    {
+      "id": "order_039",
+      "name": "Extremely Detailed Order",
+      "category": "stress_test",
+      "personality": "meticulous",
+      "description": "Customer gives extremely specific instructions",
+      "test_objectives": [
+        "Agent captures all details",
+        "Agent includes all modifications"
+      ],
+      "customer_script": [
+        "I want the Chicken with Broccoli, quart, but can you use half the normal sauce, make sure the chicken is well done, cut the broccoli into smaller pieces, and put the rice in a separate container",
+        "And extra chicken",
+        "That's it",
+        "607-999-2468"
+      ],
+      "expected_agent_behaviors": [
+        "Captures all specific instructions",
+        "Notes each modification",
+        "Applies extra chicken charge",
+        "Reads back modifications in summary"
+      ]
+    },
+    {
+      "id": "order_040",
+      "name": "Asking About MSG",
+      "category": "customer_questions",
+      "personality": "health-conscious",
+      "description": "Customer asks about MSG in food",
+      "test_objectives": [
+        "Agent handles MSG question appropriately",
+        "Agent may defer to staff for specific questions"
+      ],
+      "customer_script": [
+        "Do you use MSG in your food?",
+        "Can I get my order made without MSG?",
+        "I'll have the chicken chow mein, quart, no MSG",
+        "That's it",
+        "607-753-1590"
+      ],
+      "expected_agent_behaviors": [
+        "Responds appropriately to MSG question",
+        "Notes no MSG request",
+        "May offer to check with kitchen for specifics"
+      ]
+    },
+    {
+      "id": "order_041",
+      "name": "Hangup Without Ordering",
+      "category": "edge_cases",
+      "personality": "abrupt",
+      "description": "Customer wants to hang up before completing order",
+      "test_objectives": [
+        "Agent handles incomplete order gracefully",
+        "Agent does not submit incomplete order"
+      ],
+      "customer_script": [
+        "Hi, I want to order... actually you know what, never mind. Bye"
+      ],
+      "expected_agent_behaviors": [
+        "Does not submit any order",
+        "May offer to help later",
+        "Ends call politely"
+      ]
+    },
+    {
+      "id": "order_042",
+      "name": "Child Ordering",
+      "category": "personality_challenge",
+      "personality": "child",
+      "description": "Young person calling to order",
+      "test_objectives": [
+        "Agent handles young caller",
+        "Agent may ask if adult is available"
+      ],
+      "customer_script": [
+        "Hi! Um my mom wants me to order. She wants the um... the chicken thing",
+        "Hold on let me ask her... MOM WHICH CHICKEN?... She says General Tso",
+        "And she says combo please",
+        "That's it",
+        "My mom says the number is 607-321-9876"
+      ],
+      "expected_agent_behaviors": [
+        "Patient with young caller",
+        "Asks clarifying questions",
+        "Processes order normally",
+        "Collects phone number"
+      ]
+    },
+    {
+      "id": "order_043",
+      "name": "Background Noise Challenge",
+      "category": "communication_challenge",
+      "personality": "distracted",
+      "description": "Customer is in noisy environment",
+      "test_objectives": [
+        "Agent asks for repetition when needed",
+        "Agent confirms order clearly"
+      ],
+      "customer_script": [
+        "Hi can I get *loud noise* lo mein",
+        "Sorry there's construction, CHICKEN LO MEIN",
+        "QUART",
+        "*background talking* That's all",
+        "WHAT? Oh phone number, it's 607-876-5432"
+      ],
+      "expected_agent_behaviors": [
+        "Asks customer to repeat unclear parts",
+        "Confirms key order details",
+        "Speaks clearly",
+        "Ensures phone number is correct"
+      ]
+    },
+    {
+      "id": "order_044",
+      "name": "Menu Item Number Order",
+      "category": "ordering_style",
+      "personality": "efficient",
+      "description": "Customer orders by menu item numbers only",
+      "test_objectives": [
+        "Agent recognizes item numbers",
+        "Agent confirms correct items"
+      ],
+      "customer_script": [
+        "I want number 54, pint, and number 65, quart",
+        "And C16",
+        "That's all",
+        "607-159-7530"
+      ],
+      "expected_agent_behaviors": [
+        "Identifies #54 as Chicken Lo Mein",
+        "Identifies #65 as Beef w. Broccoli",
+        "Identifies C16 as General Tso's Chicken",
+        "Confirms items by name"
+      ]
+    },
+    {
+      "id": "order_045",
+      "name": "Special Occasion Order",
+      "category": "context_order",
+      "personality": "celebratory",
+      "description": "Customer ordering for special occasion",
+      "test_objectives": [
+        "Agent handles special request context",
+        "Agent processes order efficiently"
+      ],
+      "customer_script": [
+        "It's my daughter's birthday and she loves Chinese food! What do you recommend for a family of 6?",
+        "We'll do the Happy Family, two orders of pork fried rice quarts, and the Pu Pu Platter",
+        "That's everything",
+        "607-482-7931"
+      ],
+      "expected_agent_behaviors": [
+        "May offer suggestions when asked",
+        "Does not make unsolicited comments about occasion",
+        "Processes order efficiently",
+        "Provides accurate total"
+      ]
+    },
+    {
+      "id": "order_046",
+      "name": "Testing Price Calculation",
+      "category": "price_verification",
+      "personality": "analytical",
+      "description": "Customer asks about specific prices",
+      "test_objectives": [
+        "Agent calculates prices correctly",
+        "Agent only gives total at end"
+      ],
+      "customer_script": [
+        "How much is the quart of beef fried rice?",
+        "And how much would two egg rolls be?",
+        "I'll take those",
+        "That's all",
+        "607-951-3574"
+      ],
+      "expected_agent_behaviors": [
+        "States Beef Fried Rice Qt is $10.55",
+        "States two egg rolls would be $3.80",
+        "Provides total at end only",
+        "Calculates correctly"
+      ]
+    },
+    {
+      "id": "order_047",
+      "name": "Side Order Only",
+      "category": "minimal_order",
+      "personality": "simple",
+      "description": "Customer only orders side items",
+      "test_objectives": [
+        "Agent handles small orders",
+        "Agent doesn't push for more items"
+      ],
+      "customer_script": [
+        "Can I just get a large white rice and some fortune cookies?",
+        "Yes that's all",
+        "607-357-9510"
+      ],
+      "expected_agent_behaviors": [
+        "Accepts minimal order",
+        "Does not push additional items",
+        "Processes normally"
+      ]
+    },
+    {
+      "id": "order_048",
+      "name": "Drink Order Questions",
+      "category": "menu_clarification",
+      "personality": "thirsty",
+      "description": "Customer asks about beverages",
+      "test_objectives": [
+        "Agent knows drink options",
+        "Agent provides accurate pricing"
+      ],
+      "customer_script": [
+        "What kind of drinks do you have?",
+        "I'll take a can of soda and a large iced tea",
+        "And chicken fried rice, pint",
+        "That's it",
+        "607-753-8520"
+      ],
+      "expected_agent_behaviors": [
+        "Lists available drinks (Soda can $1.30, Iced Tea S/L $2.50)",
+        "Records drink order",
+        "Includes in final total"
+      ]
+    },
+    {
+      "id": "order_049",
+      "name": "Repeat Customer References Past Order",
+      "category": "context_order",
+      "personality": "familiar",
+      "description": "Customer references previous orders",
+      "test_objectives": [
+        "Agent handles references to past gracefully",
+        "Agent asks for specifics since no order history"
+      ],
+      "customer_script": [
+        "Hi, I want to order the same thing I got last time",
+        "You know, the chicken thing with the sauce",
+        "Oh you don't have that on file? It was General Tso's Chicken, combo",
+        "Yes that's all",
+        "Same number, 607-222-8888"
+      ],
+      "expected_agent_behaviors": [
+        "Politely explains no access to order history",
+        "Asks customer to specify order",
+        "Processes order once clarified"
+      ]
+    },
+    {
+      "id": "order_050",
+      "name": "Comprehensive Stress Test",
+      "category": "stress_test",
+      "personality": "demanding",
+      "description": "Complex order with substitutions, modifications, and questions",
+      "test_objectives": [
+        "Agent handles complex multi-part order",
+        "Agent maintains accuracy under pressure"
+      ],
+      "customer_script": [
+        "Okay I need: General Tso's combo with chicken fried rice instead of pork, no egg roll add extra spring roll",
+        "Two quarts of shrimp lo mein, one with extra shrimp",
+        "Wait how much is that so far?",
+        "Okay continue. Pu Pu platter, hold the spare ribs",
+        "Three pints of wonton soup",
+        "What time do you close?",
+        "Okay one more thing, beef with broccoli quart, extra beef, less sauce",
+        "Actually change one of the wonton soups to hot and sour",
+        "That's everything",
+        "Phone is 607-FAST-WOK, just kidding it's 607-327-8965"
+      ],
+      "expected_agent_behaviors": [
+        "Tracks all items correctly",
+        "Applies all modifications",
+        "Handles changes mid-order",
+        "Calculates correct prices",
+        "Provides accurate summary",
+        "Handles joke professionally"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "restaurant_name": "Far East Chinese Restaurant",
+    "agent_name": "Sarah",
+    "total_scenarios": 50,
+    "categories": [
+      "basic_ordering",
+      "substitutions",
+      "specialty_items",
+      "edge_cases",
+      "personality_challenge",
+      "unavailable_services",
+      "unavailable_items",
+      "guardrails",
+      "stress_test",
+      "customer_questions",
+      "restaurant_info",
+      "menu_clarification",
+      "modifications",
+      "special_menus",
+      "communication_challenge",
+      "efficiency_test",
+      "time_restrictions",
+      "ordering_style",
+      "context_order",
+      "price_verification",
+      "minimal_order"
+    ]
+  }
+}

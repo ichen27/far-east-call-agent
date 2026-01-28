@@ -25,6 +25,7 @@
 
   // Configure your backend URL - set this as an environment variable
   const API_BASE_URL = 'https://fe-display.fareastbackend.us'
+  //const API_BASE_URL = 'http://localhost:8080'
 
   // Computed property to filter orders based on view mode
   const filteredOrders = computed(() => {

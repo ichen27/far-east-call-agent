@@ -1,0 +1,3410 @@
+{
+  "testNumber": 9,
+  "timestamp": "2026-01-26T21:37:03.191Z",
+  "totalScenarios": 20,
+  "averageScore": 94.6375,
+  "categoryFilter": "all",
+  "scoringCriteria": {
+    "accuracy": {
+      "name": "Order Accuracy",
+      "description": "How accurately the agent captures the order items, quantities, and modifications",
+      "weight": 0.25
+    },
+    "staysOnTrack": {
+      "name": "Stays On Track",
+      "description": "How well the agent keeps the conversation focused on ordering",
+      "weight": 0.15
+    },
+    "problemSolving": {
+      "name": "Problem Solving",
+      "description": "How effectively the agent handles issues, clarifications, and edge cases",
+      "weight": 0.15
+    },
+    "orderTaking": {
+      "name": "Order Taking Process",
+      "description": "How well the agent follows the order-taking flow (items, sizes, phone, summary)",
+      "weight": 0.2
+    },
+    "efficiency": {
+      "name": "Efficiency",
+      "description": "How quickly and concisely the agent completes the order without unnecessary steps",
+      "weight": 0.1
+    },
+    "professionalism": {
+      "name": "Professionalism",
+      "description": "How polite, patient, and professional the agent remains throughout",
+      "weight": 0.1
+    },
+    "guardrails": {
+      "name": "Guardrail Compliance",
+      "description": "How well the agent adheres to safety guidelines (no allergen advice, no credit cards, no delivery)",
+      "weight": 0.05
+    }
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "order_001",
+        "name": "Simple Single Item Order",
+        "category": "basic_ordering",
+        "personality": "friendly",
+        "description": "Customer orders a single straightforward item",
+        "test_objectives": [
+          "Agent asks for size when applicable",
+          "Agent confirms order at the end",
+          "Agent collects phone number"
+        ],
+        "expected_agent_behaviors": [
+          "Greets customer appropriately",
+          "Confirms it's the Chef's Specialty (C16) not the combination plate",
+          "Summarizes order once at end",
+          "Asks for phone number",
+          "Provides estimated pickup time"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi, I'd like to order some General Tso's Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like that as a regular order or as a combination plate, which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Just a regular order, not a combination"
+        },
+        {
+          "role": "agent",
+          "content": "Great, I've got you down for a regular order of General Tso's Chicken. Is there anything else you'd like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all for me"
+        },
+        {
+          "role": "agent",
+          "content": "Great, I'll summarize your order: \n\n- 1 Regular Order of General Tso's Chicken for $12.95.\n\nCould I please have your phone number to complete the order?"
+        },
+        {
+          "role": "customer",
+          "content": "My phone number is 607-555-1234"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-555-1234",
+            "items": [
+              {
+                "name": "General Tso's Chicken",
+                "quantity": 1,
+                "price": 12.95
+              }
+            ],
+            "totalPrice": 12.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-555-1234",
+        "items": [
+          {
+            "name": "General Tso's Chicken",
+            "quantity": 1,
+            "price": 12.95
+          }
+        ],
+        "totalPrice": 12.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 90,
+            "justification": "The agent captured the order accurately including name, quantity, and price. However, it missed confirming if it's the Chef's Specialty (C16)."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "Agent stayed focused on ordering with minimal deviation from the main task."
+          },
+          "problemSolving": {
+            "score": 80,
+            "justification": "Agent handled the potential confusion between the regular and combination orders well, but did not confirm the Chef's Specialty."
+          },
+          "orderTaking": {
+            "score": 85,
+            "justification": "The order flow was generally correct, although it missed providing the estimated pickup time."
+          },
+          "efficiency": {
+            "score": 95,
+            "justification": "The conversation was concise and direct without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "Agent was polite and professional throughout, maintaining friendliness."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "Agent did not provide allergen advice, ask for credit card information, or offer delivery, adhering to the guardrails."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Greets customer appropriately",
+            "met": true,
+            "notes": "Agent started with a friendly greeting."
+          },
+          {
+            "behavior": "Confirms it's the Chef's Specialty (C16) not the combination plate",
+            "met": false,
+            "notes": "Agent did not confirm the order was the Chef's Specialty."
+          },
+          {
+            "behavior": "Summarizes order once at end",
+            "met": true,
+            "notes": "Agent summarized the order as expected."
+          },
+          {
+            "behavior": "Asks for phone number",
+            "met": true,
+            "notes": "Agent collected the phone number for the order."
+          },
+          {
+            "behavior": "Provides estimated pickup time",
+            "met": false,
+            "notes": "Agent did not provide an estimated pickup time."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent asks for size when applicable",
+            "met": false,
+            "notes": "The concept of size was not applicable and therefore not addressed."
+          },
+          {
+            "objective": "Agent confirms order at the end",
+            "met": true,
+            "notes": "Agent provided a thorough order summary at the end."
+          },
+          {
+            "objective": "Agent collects phone number",
+            "met": true,
+            "notes": "Agent collected the phone number as required."
+          }
+        ],
+        "overallNotes": "The agent performed well in maintaining the flow of conversation and collecting necessary information. However, it missed confirming the Chef's Specialty and providing an estimated pickup time, both of which are key details for order completeness.",
+        "criticalIssues": []
+      },
+      "weightedScore": 90.25
+    },
+    {
+      "scenario": {
+        "id": "order_002",
+        "name": "Combination Plate Order",
+        "category": "basic_ordering",
+        "personality": "friendly",
+        "description": "Customer orders a combination plate",
+        "test_objectives": [
+          "Agent correctly identifies combination plate",
+          "Agent understands combo comes with pork fried rice and egg roll"
+        ],
+        "expected_agent_behaviors": [
+          "Confirms combination plate #13",
+          "Does not ask for size since it's a combo",
+          "Summarizes order with fried rice and egg roll included"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I get the General Tso's Chicken combination plate?"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! Would you like any substitutions for the pork fried rice and egg roll that come with the General Tso's Chicken combination plate, or would you prefer it as is?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that's everything"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as the General Tso's Chicken combination plate with pork fried rice and egg roll as is. Could I have your phone number, please?"
+        },
+        {
+          "role": "customer",
+          "content": "555-123-4567"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "555-123-4567",
+            "items": [
+              {
+                "name": "General Tso's Chicken",
+                "quantity": 1,
+                "size": "Combination",
+                "price": 11.15
+              }
+            ],
+            "totalPrice": 11.15
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your General Tso's Chicken combination plate will be ready for pickup in about 10-15 minutes. Have a great day!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "555-123-4567",
+        "items": [
+          {
+            "name": "General Tso's Chicken",
+            "quantity": 1,
+            "size": "Combination",
+            "price": 11.15
+          }
+        ],
+        "totalPrice": 11.15
+      },
+      "hangUpCalled": true,
+      "turnCount": 4,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 90,
+            "justification": "The agent accurately captured the items, quantity, and size but did not explicitly include the fried rice and egg roll in the order submission details."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent kept the conversation focused on the order process without deviation."
+          },
+          "problemSolving": {
+            "score": 85,
+            "justification": "The agent offered a clarification option for substitutions, demonstrating problem-solving capability, though no complex issues were addressed."
+          },
+          "orderTaking": {
+            "score": 90,
+            "justification": "The agent correctly followed the order flow but did not include an explicit confirmation of the price in the conversation, although it was correct in the submission."
+          },
+          "efficiency": {
+            "score": 100,
+            "justification": "The conversation was concise and contained no unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite and friendly throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, payments, or delivery, staying within the boundaries set by the company's guidelines."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Confirms combination plate #13",
+            "met": false,
+            "notes": "The agent confirmed the combination plate but did not specify the plate number."
+          },
+          {
+            "behavior": "Does not ask for size since it's a combo",
+            "met": true,
+            "notes": "The agent did not inquire about the size, correctly recognizing it as a combo."
+          },
+          {
+            "behavior": "Summarizes order with fried rice and egg roll included",
+            "met": true,
+            "notes": "The agent confirmed the inclusion of fried rice and egg roll verbally during the call."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent correctly identifies combination plate",
+            "met": true,
+            "notes": "The agent correctly identified and confirmed the combination plate."
+          },
+          {
+            "objective": "Agent understands combo comes with pork fried rice and egg roll",
+            "met": true,
+            "notes": "The agent recognized and confirmed that the combo includes pork fried rice and egg roll."
+          }
+        ],
+        "overallNotes": "The agent effectively managed the ordering process with a clear focus on accuracy and efficiency. Minor improvements can be made in explicitly stating item components in the order summary.",
+        "criticalIssues": []
+      },
+      "weightedScore": 92.5
+    },
+    {
+      "scenario": {
+        "id": "order_003",
+        "name": "Multiple Items with Sizes",
+        "category": "basic_ordering",
+        "personality": "decisive",
+        "description": "Customer orders multiple items and specifies sizes",
+        "test_objectives": [
+          "Agent handles multiple items correctly",
+          "Agent tracks all items accurately"
+        ],
+        "expected_agent_behaviors": [
+          "Records Chicken Lo Mein Qt at $10.95",
+          "Records Wonton Soup Pt at $3.35",
+          "Records Vegetable Egg Roll at $1.90",
+          "Summarizes all items with prices"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I want a quart of Chicken Lo Mein and a pint of Wonton Soup"
+        },
+        {
+          "role": "agent",
+          "content": "Great! So I have a quart of Chicken Lo Mein and a pint of Wonton Soup. Is there anything else you'd like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Also add a vegetable egg roll"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! So your order includes a quart of Chicken Lo Mein, a pint of Wonton Soup, and a vegetable egg roll. Is that everything for your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "That's it"
+        },
+        {
+          "role": "agent",
+          "content": "Perfect! To summarize, your order is:\n\n- Chicken Lo Mein (Quart): $10.95\n- Wonton Soup (Pint): $3.35\n- Vegetable Egg Roll (1): $1.90\n\nYour total will be $16.20, including tax. Could I get your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "Phone is 607-797-5555"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-797-5555",
+            "items": [
+              {
+                "name": "Chicken Lo Mein",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 10.95
+              },
+              {
+                "name": "Wonton Soup",
+                "quantity": 1,
+                "size": "Pt",
+                "price": 3.35
+              },
+              {
+                "name": "Vegetable Egg Roll",
+                "quantity": 1,
+                "price": 1.9
+              }
+            ],
+            "totalPrice": 16.2
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-797-5555",
+        "items": [
+          {
+            "name": "Chicken Lo Mein",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 10.95
+          },
+          {
+            "name": "Wonton Soup",
+            "quantity": 1,
+            "size": "Pt",
+            "price": 3.35
+          },
+          {
+            "name": "Vegetable Egg Roll",
+            "quantity": 1,
+            "price": 1.9
+          }
+        ],
+        "totalPrice": 16.2
+      },
+      "hangUpCalled": true,
+      "turnCount": 4,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "All ordered items, quantities, sizes, and prices were captured accurately without errors."
+          },
+          "staysOnTrack": {
+            "score": 100,
+            "justification": "The agent stayed focused on the ordering process and did not diverge from the topic."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent handled the straightforward order well, but there was no scenario requiring problem solving or clarifications."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed a proper flow: confirming items and sizes, summarizing the order, collecting the phone number, and finalizing the order."
+          },
+          "efficiency": {
+            "score": 100,
+            "justification": "The conversation was concise and to the point, without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and professional throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent did not advise on allergens, request credit card details, or offer delivery."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Records Chicken Lo Mein Qt at $10.95",
+            "met": true,
+            "notes": "The agent recorded the Chicken Lo Mein with the correct size and price."
+          },
+          {
+            "behavior": "Records Wonton Soup Pt at $3.35",
+            "met": true,
+            "notes": "The agent recorded the Wonton Soup with the correct size and price."
+          },
+          {
+            "behavior": "Records Vegetable Egg Roll at $1.90",
+            "met": true,
+            "notes": "The agent recorded the Vegetable Egg Roll with the correct price."
+          },
+          {
+            "behavior": "Summarizes all items with prices",
+            "met": true,
+            "notes": "The agent accurately summarized all items with their respective prices."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles multiple items correctly",
+            "met": true,
+            "notes": "The agent handled the order of multiple items correctly."
+          },
+          {
+            "objective": "Agent tracks all items accurately",
+            "met": true,
+            "notes": "The agent accurately tracked all items as ordered by the customer."
+          }
+        ],
+        "overallNotes": "The AI agent handled the order efficiently and accurately, meeting all criteria and objectives. The order was processed smoothly without any issues.",
+        "criticalIssues": []
+      },
+      "weightedScore": 98.5
+    },
+    {
+      "scenario": {
+        "id": "order_004",
+        "name": "Substitution Request",
+        "category": "substitutions",
+        "personality": "specific",
+        "description": "Customer wants to substitute fried rice in a combination plate",
+        "test_objectives": [
+          "Agent handles substitution correctly",
+          "Agent calculates price adjustment properly"
+        ],
+        "expected_agent_behaviors": [
+          "Accepts the substitution",
+          "Calculates adjusted price using substitution formula",
+          "Confirms the modification in order summary"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'd like the Sesame Chicken combination"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like any substitutions for the pork fried rice or egg roll that come with the Sesame Chicken combination?"
+        },
+        {
+          "role": "customer",
+          "content": "But can I get chicken lo mein instead of the pork fried rice?"
+        },
+        {
+          "role": "agent",
+          "content": "Sure, you can substitute the pork fried rice with chicken lo mein. Is there anything else you would like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that's all"
+        },
+        {
+          "role": "agent",
+          "content": "To confirm, you have ordered the Sesame Chicken combination with chicken lo mein instead of pork fried rice. The total price will be $12.95.\n\nCould I please get your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "My number is 607-222-3333"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-222-3333",
+            "items": [
+              {
+                "name": "Sesame Chicken",
+                "quantity": 1,
+                "size": "Combination",
+                "price": 12.95,
+                "modifications": "Substitute chicken lo mein for pork fried rice"
+              }
+            ],
+            "totalPrice": 12.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your total is $12.95, and it will be ready for pickup in about 10-15 minutes. Goodbye!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-222-3333",
+        "items": [
+          {
+            "name": "Sesame Chicken",
+            "quantity": 1,
+            "size": "Combination",
+            "price": 12.95,
+            "modifications": "Substitute chicken lo mein for pork fried rice"
+          }
+        ],
+        "totalPrice": 12.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 85,
+            "justification": "The agent accurately captured the order details and processed the substitution correctly. However, there's no mention of the cost adjustment for the substitution; assuming the total remains the same is questionable."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent remained focused on the order and did not deviate from the primary task of confirming the substitution and completing the order."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent handled the substitution request efficiently, which indicates a good level of problem-solving ability for this scenario."
+          },
+          "orderTaking": {
+            "score": 80,
+            "justification": "While the order flow was generally correct, the agent did not clarify any price adjustments, which is important for substitutions."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and free of unnecessary dialogue, focusing solely on the task at hand."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite and professional throughout the interaction, maintaining a courteous tone."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided giving allergen advice, taking credit card information, or offering delivery, adhering to guardrail compliance."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Accepts the substitution",
+            "met": true,
+            "notes": "The agent accepted and processed the customer's request for a substitution."
+          },
+          {
+            "behavior": "Calculates adjusted price using substitution formula",
+            "met": false,
+            "notes": "The agent did not clarify how the total price was affected by the substitution."
+          },
+          {
+            "behavior": "Confirms the modification in order summary",
+            "met": true,
+            "notes": "The agent confirmed the modification in the order summary."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles substitution correctly",
+            "met": true,
+            "notes": "The agent successfully handled the substitution request."
+          },
+          {
+            "objective": "Agent calculates price adjustment properly",
+            "met": false,
+            "notes": "There was no clear communication regarding any price adjustment for the substitution."
+          }
+        ],
+        "overallNotes": "Overall, the agent performed well in managing the conversation and confirming the order. However, it failed to properly address or communicate any price adjustments related to the substitution request. This is a critical aspect when substitutions are involved and should be rectified to ensure customer satisfaction and clarity.",
+        "criticalIssues": [
+          "Lack of communication around price adjustments due to substitution."
+        ]
+      },
+      "weightedScore": 89
+    },
+    {
+      "scenario": {
+        "id": "order_005",
+        "name": "Specialty Item with Options",
+        "category": "specialty_items",
+        "personality": "unsure",
+        "description": "Customer orders an A-item specialty and needs guidance on options",
+        "test_objectives": [
+          "Agent asks if they want plain, with fries, or with fried rice",
+          "Agent clarifies fried rice type if applicable"
+        ],
+        "expected_agent_behaviors": [
+          "Identifies A4 Fried Chicken Nuggets",
+          "Asks if they want plain, with french fries, or with fried rice",
+          "If fried rice, asks what type",
+          "Applies correct pricing based on choice"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I get the fried chicken nuggets?"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! Would you like the Fried Chicken Nuggets plain, with French fries, or with fried rice? If you choose fried rice, please let me know what kind you would like."
+        },
+        {
+          "role": "customer",
+          "content": "Hmm what are my options?"
+        },
+        {
+          "role": "agent",
+          "content": "You can have the Fried Chicken Nuggets with:\n\n- Plain\n- French Fries\n- Plain Fried Rice\n- Chicken Fried Rice\n- Pork Fried Rice\n- Vegetable Fried Rice\n- Beef Fried Rice\n- Shrimp Fried Rice\n\nPlease let me know your choice!"
+        },
+        {
+          "role": "customer",
+          "content": "I'll do it with chicken fried rice"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! Is that everything for your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order of Fried Chicken Nuggets with Chicken Fried Rice.\n\nThe total will be $10.95. Could I get your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-111-2222"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-111-2222",
+            "items": [
+              {
+                "name": "Fried Chicken Nuggets",
+                "quantity": 1,
+                "size": "with Chicken Fried Rice",
+                "price": 10.95
+              }
+            ],
+            "totalPrice": 10.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-111-2222",
+        "items": [
+          {
+            "name": "Fried Chicken Nuggets",
+            "quantity": 1,
+            "size": "with Chicken Fried Rice",
+            "price": 10.95
+          }
+        ],
+        "totalPrice": 10.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 6,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order was captured accurately with the correct item, quantity, size, and price."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent maintained focus on the order with brief and necessary clarifications."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent effectively clarified the customer's options without confusion or delay."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed a logical order-taking process: item selection, size clarification, phone confirmation, and summary."
+          },
+          "efficiency": {
+            "score": 95,
+            "justification": "The interaction was concise without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite and maintained a professional demeanor throughout the call."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, credit card information, or delivery options as required."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Identifies A4 Fried Chicken Nuggets",
+            "met": true,
+            "notes": "The agent successfully identified the Fried Chicken Nuggets"
+          },
+          {
+            "behavior": "Asks if they want plain, with french fries, or with fried rice",
+            "met": true,
+            "notes": "The agent asked if the customer wanted plain, with fries, or with fried rice."
+          },
+          {
+            "behavior": "If fried rice, asks what type",
+            "met": true,
+            "notes": "The agent asked for the specific type of fried rice."
+          },
+          {
+            "behavior": "Applies correct pricing based on choice",
+            "met": true,
+            "notes": "The agent accurately applied the correct pricing for the chosen option."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent asks if they want plain, with fries, or with fried rice",
+            "met": true,
+            "notes": "The agent met this objective effectively."
+          },
+          {
+            "objective": "Agent clarifies fried rice type if applicable",
+            "met": true,
+            "notes": "Clarification about the type of fried rice was provided when applicable."
+          }
+        ],
+        "overallNotes": "The agent performed well, accurately capturing and processing the order while maintaining professionalism. All expected behaviors and test objectives were met efficiently.",
+        "criticalIssues": []
+      },
+      "weightedScore": 97.25
+    },
+    {
+      "scenario": {
+        "id": "order_006",
+        "name": "Vague Customer",
+        "category": "edge_cases",
+        "personality": "vague",
+        "description": "Customer is unclear about what they want",
+        "test_objectives": [
+          "Agent asks clarifying questions",
+          "Agent does not assume customer preferences"
+        ],
+        "expected_agent_behaviors": [
+          "Asks which chicken dish specifically",
+          "Does not suggest items unless asked",
+          "Clarifies whether regular order or combination",
+          "Remains patient throughout"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Yeah I want some chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! Would you like to order Chicken as a regular dish, part of a combination plate, or one of our specialties? Let me know what you're interested in!"
+        },
+        {
+          "role": "customer",
+          "content": "The good one"
+        },
+        {
+          "role": "agent",
+          "content": "Could you please clarify which chicken dish you are referring to? We have a variety such as General Tso's Chicken, Sesame Chicken, Kung Pao Chicken, and many more. Let me know what you're craving!"
+        },
+        {
+          "role": "customer",
+          "content": "You know, the one everyone gets"
+        },
+        {
+          "role": "agent",
+          "content": "General Tso's Chicken is a popular choice! Would you like that as a Chef's Specialty or as a Combination Plate which includes pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Fine, just give me the General Tso's"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the General Tso's Chicken as a Chef's Specialty or as a Combination Plate with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Regular I guess"
+        },
+        {
+          "role": "agent",
+          "content": "Great! I'll put that down as a regular order of General Tso's Chicken. Is there anything else you'd like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Done"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Let me summarize your order: \n\n- General Tso's Chicken (Regular Order) - $12.95\n\nCould I have your phone number to complete the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-999-8888"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-999-8888",
+            "items": [
+              {
+                "name": "General Tso's Chicken",
+                "quantity": 1,
+                "price": 12.95
+              }
+            ],
+            "totalPrice": 12.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your General Tso's Chicken will be ready for pickup in about 10-15 minutes. We look forward to serving you soon. Goodbye!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-999-8888",
+        "items": [
+          {
+            "name": "General Tso's Chicken",
+            "quantity": 1,
+            "price": 12.95
+          }
+        ],
+        "totalPrice": 12.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 8,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order was accurately captured as a regular General Tso's Chicken. The phone number and price were correctly recorded."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent kept the conversation focused on ordering the correct item despite some vague responses from the customer."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent effectively asked clarifying questions to determine the specific chicken dish the customer wanted, handling the vagueness well."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed the proper flow: determining items, clarifying size (regular vs. specialty), confirming, collecting phone number, and summarizing the order effectively."
+          },
+          "efficiency": {
+            "score": 85,
+            "justification": "The conversation was mostly concise, but there was a slight repetition when confirming the order type."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and professional throughout the interaction, addressing the customer's vague requests calmly."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent did not discuss allergens, payment information, or delivery options, adhering to compliance guidelines."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Asks which chicken dish specifically",
+            "met": true,
+            "notes": "The agent asked the customer to specify the chicken dish."
+          },
+          {
+            "behavior": "Does not suggest items unless asked",
+            "met": true,
+            "notes": "The agent only mentioned dishes to clarify the vague request and did not suggest additional items."
+          },
+          {
+            "behavior": "Clarifies whether regular order or combination",
+            "met": true,
+            "notes": "The agent asked the customer to choose between a Chef's Specialty and a Combination Plate."
+          },
+          {
+            "behavior": "Remains patient throughout",
+            "met": true,
+            "notes": "The agent was patient and maintained professionalism despite the customer's vagueness."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent asks clarifying questions",
+            "met": true,
+            "notes": "The agent effectively asked clarifying questions to handle the vague request."
+          },
+          {
+            "objective": "Agent does not assume customer preferences",
+            "met": true,
+            "notes": "The agent did not make assumptions and requested specific clarification from the customer."
+          }
+        ],
+        "overallNotes": "The agent handled the vague customer scenario excellently, maintaining professionalism, accuracy, and adherence to procedure. Minor repetition did occur, yet the clarifications were necessary for determining customer preference.",
+        "criticalIssues": []
+      },
+      "weightedScore": 96.25
+    },
+    {
+      "scenario": {
+        "id": "order_007",
+        "name": "Rude Customer",
+        "category": "personality_challenge",
+        "personality": "rude",
+        "description": "Customer is impatient and dismissive",
+        "test_objectives": [
+          "Agent remains professional",
+          "Agent still collects required information"
+        ],
+        "expected_agent_behaviors": [
+          "Stays polite and professional",
+          "Completes order efficiently",
+          "Does not react negatively to rudeness",
+          "Still confirms order and provides pickup time"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Look I don't have all day. Beef with broccoli. Quart. That's it."
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a beef with broccoli, quart size. \n\nCould I get your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "Why are you asking so many questions? I said that's it!"
+        },
+        {
+          "role": "agent",
+          "content": "I apologize for the inconvenience. Could I please have your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "Fine. 607-555-0000. Happy now?"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-555-0000",
+            "items": [
+              {
+                "name": "Beef w. Broccoli",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 12.95
+              }
+            ],
+            "totalPrice": 12.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-555-0000",
+        "items": [
+          {
+            "name": "Beef w. Broccoli",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 12.95
+          }
+        ],
+        "totalPrice": 12.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 4,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The item, quantity, size, and price were captured accurately and submitted correctly."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent maintained focus on the order despite the customer's rudeness, only deviating slightly by apologizing for the inconvenience."
+          },
+          "problemSolving": {
+            "score": 85,
+            "justification": "The agent effectively requested the necessary phone number even when the customer expressed dissatisfaction."
+          },
+          "orderTaking": {
+            "score": 70,
+            "justification": "The agent did not confirm the final order or provide a pickup time before submitting the order."
+          },
+          "efficiency": {
+            "score": 85,
+            "justification": "The conversation was concise with minimal repetition, though the agent did apologize twice."
+          },
+          "professionalism": {
+            "score": 95,
+            "justification": "The agent remained polite and professional throughout the interaction, not reacting negatively to the customer's rudeness."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, credit card details, and did not offer delivery options."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Stays polite and professional",
+            "met": true,
+            "notes": "The agent was polite and professional."
+          },
+          {
+            "behavior": "Completes order efficiently",
+            "met": true,
+            "notes": "The order was completed in a timely manner."
+          },
+          {
+            "behavior": "Does not react negatively to rudeness",
+            "met": true,
+            "notes": "The agent remained calm and courteous."
+          },
+          {
+            "behavior": "Still confirms order and provides pickup time",
+            "met": false,
+            "notes": "The agent did not confirm the order or provide a pickup time."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent remains professional",
+            "met": true,
+            "notes": "The agent handled the rude customer professionally."
+          },
+          {
+            "objective": "Agent still collects required information",
+            "met": true,
+            "notes": "The agent collected the necessary phone number."
+          }
+        ],
+        "overallNotes": "The agent successfully navigated the challenge of a rude customer by maintaining professionalism and completing the order accurately and efficiently. However, the order confirmation and provision of pickup times were omitted.",
+        "criticalIssues": []
+      },
+      "weightedScore": 88.25
+    },
+    {
+      "scenario": {
+        "id": "order_008",
+        "name": "Confused Elderly Customer",
+        "category": "personality_challenge",
+        "personality": "confused",
+        "description": "Customer is confused and needs extra patience",
+        "test_objectives": [
+          "Agent shows patience",
+          "Agent helps guide the customer"
+        ],
+        "expected_agent_behaviors": [
+          "Politely identifies the restaurant",
+          "Helps identify Orange Chicken (C20)",
+          "Patiently explains options",
+          "Offers to help but doesn't push suggestions",
+          "Waits patiently for phone number"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hello? Is this the pizza place?"
+        },
+        {
+          "role": "agent",
+          "content": "No, this is Far East Chinese Restaurant. How can I assist you with your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh Chinese food? What do you have?"
+        },
+        {
+          "role": "agent",
+          "content": "We have a wide variety of delicious Chinese dishes including appetizers, soups, chow mein, fried rice, lo mein, chef's specialties, beef, chicken, seafood, and more. If you have something in mind, I can help with the details. Is there a particular dish you're interested in?"
+        },
+        {
+          "role": "customer",
+          "content": "My grandson likes that orange chicken, do you have that?"
+        },
+        {
+          "role": "agent",
+          "content": "Yes, we do have Orange Chicken. It is available as both a Chef's Specialty (C20) and as part of a combination plate (#20 as \"Triple Delight,\" which includes Orange Chicken among other items). Would you like it as a regular order or as a combination plate?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that one, I'll take one of those"
+        },
+        {
+          "role": "agent",
+          "content": "Great! Would you like the Orange Chicken as a Chef's Specialty (C20) for $12.95, or as Combo Plate #20 \"Triple Delight\" which includes it, with pork fried rice and an egg roll, for $11.15?"
+        },
+        {
+          "role": "customer",
+          "content": "What size? I don't know, what do people usually get?"
+        },
+        {
+          "role": "agent",
+          "content": "For Orange Chicken, most people often choose it as a combination plate because it comes with pork fried rice and an egg roll. I'll put that down as a Combo Plate #20 \"Triple Delight\" order. Is there anything else you would like to add?"
+        },
+        {
+          "role": "customer",
+          "content": "The combination then"
+        },
+        {
+          "role": "agent",
+          "content": "Perfect! I've put down the Combination Plate #20 \"Triple Delight\". Would you like to add anything else to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh I need to give you my phone number? It's... hold on let me find my glasses... 607-444-5555"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for providing your phone number: 607-444-5555. Is there anything else you'd like to add to your order, or is that everything?"
+        },
+        {
+          "role": "customer",
+          "content": "Thank you dear"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-444-5555",
+            "items": [
+              {
+                "name": "Combination Plate #20 \"Triple Delight\"",
+                "quantity": 1,
+                "price": 11.15
+              }
+            ],
+            "totalPrice": 11.15
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-444-5555",
+        "items": [
+          {
+            "name": "Combination Plate #20 \"Triple Delight\"",
+            "quantity": 1,
+            "price": 11.15
+          }
+        ],
+        "totalPrice": 11.15
+      },
+      "hangUpCalled": true,
+      "turnCount": 9,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "All items, quantities, and prices were recorded accurately. The agent correctly identified the chosen item as Combo Plate #20 and recorded the customer's phone number without errors."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent consistently focused the conversation on finalizing the order, with only a brief diversion when the customer mentioned needing to get their glasses."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent effectively clarified the menu options and guided the customer to make a decision between the Chef's Specialty and Combo Plate, while being patient and clear."
+          },
+          "orderTaking": {
+            "score": 85,
+            "justification": "The agent followed a logical order-taking process but took the phone number after confirming the item and didn't summarize the full order before the conclusion."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and efficient, with minimal repetition and no unnecessary dialogue."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was consistently polite, patient, and professional with the confused customer, which is evident throughout the dialogue."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, credit cards, and delivery options, staying within defined compliance boundaries."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Politely identifies the restaurant",
+            "met": true,
+            "notes": "The agent started the call by identifying the restaurant clearly."
+          },
+          {
+            "behavior": "Helps identify Orange Chicken (C20)",
+            "met": true,
+            "notes": "The agent explained the options for Orange Chicken and guided the customer accordingly."
+          },
+          {
+            "behavior": "Patiently explains options",
+            "met": true,
+            "notes": "The agent demonstrated patience while explaining menu options and choices to the customer."
+          },
+          {
+            "behavior": "Offers to help but doesn't push suggestions",
+            "met": true,
+            "notes": "The agent provided options without pushing any particular choice on the customer."
+          },
+          {
+            "behavior": "Waits patiently for phone number",
+            "met": true,
+            "notes": "The agent waited patiently while the customer retrieved their glasses to provide the phone number."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent shows patience",
+            "met": true,
+            "notes": "The agent consistently exhibited patience throughout the interaction."
+          },
+          {
+            "objective": "Agent helps guide the customer",
+            "met": true,
+            "notes": "The agent effectively guided the customer to a decision while accommodating their confusion."
+          }
+        ],
+        "overallNotes": "The conversation was handled well by the agent, who showed patience and professionalism in guiding a confused customer through the ordering process. The agent's adherence to protocol and guardrails was commendable.",
+        "criticalIssues": []
+      },
+      "weightedScore": 93.75
+    },
+    {
+      "scenario": {
+        "id": "order_009",
+        "name": "Request for Delivery",
+        "category": "unavailable_services",
+        "personality": "normal",
+        "description": "Customer asks for delivery which is not offered",
+        "test_objectives": [
+          "Agent politely declines delivery",
+          "Agent offers pickup as alternative"
+        ],
+        "expected_agent_behaviors": [
+          "Apologizes and explains no delivery available",
+          "Offers takeout/pickup as alternative",
+          "Continues with order smoothly"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi can I get a delivery order?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we don't offer delivery services at the moment. However, you can place an order for takeout and pick it up at our restaurant. How can I assist you with your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh really? That's too bad. Okay I'll come pick it up then"
+        },
+        {
+          "role": "agent",
+          "content": "Great! What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll have the Sweet and Sour Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the Sweet and Sour Chicken as a regular order or as a combination plate which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order of Sweet and Sour Chicken. \n\nCould I get your phone number, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-333-2222"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-333-2222",
+            "items": [
+              {
+                "name": "Sweet & Sour Chicken",
+                "quantity": 1,
+                "price": 11.95
+              }
+            ],
+            "totalPrice": 11.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been placed successfully. \n\nThe total comes to $11.95, and it will be ready for pickup in about 10-15 minutes. See you soon! Goodbye!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-333-2222",
+        "items": [
+          {
+            "name": "Sweet & Sour Chicken",
+            "quantity": 1,
+            "price": 11.95
+          }
+        ],
+        "totalPrice": 11.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 6,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 95,
+            "justification": "The agent accurately captured the order for Sweet and Sour Chicken, including the customer's phone number and provided the correct pricing."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent maintained focus on the ordering process, promptly moving from acknowledging the service restriction to taking the order details."
+          },
+          "problemSolving": {
+            "score": 100,
+            "justification": "The agent effectively handled the customer's delivery request by apologizing and offering pickup as an alternative, which fits the test objectives."
+          },
+          "orderTaking": {
+            "score": 85,
+            "justification": "The agent followed the ordering process well, though could have confirmed the choice between regular and combination plate more explicitly."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and direct, with no unnecessary repetitions or digressions."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite and professional throughout the interaction, meeting expected standards of customer service."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent adhered to guardrails, avoided discussing allergens, credit cards, and correctly indicated that delivery is not offered."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Apologizes and explains no delivery available",
+            "met": true,
+            "notes": "The agent apologized and explained the lack of a delivery service clearly."
+          },
+          {
+            "behavior": "Offers takeout/pickup as alternative",
+            "met": true,
+            "notes": "The agent suggested takeout/pickup as an alternative promptly and smoothly."
+          },
+          {
+            "behavior": "Continues with order smoothly",
+            "met": true,
+            "notes": "The agent transitioned smoothly to taking the order after addressing the delivery issue."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent politely declines delivery",
+            "met": true,
+            "notes": "The agent politely declined the delivery request with an explanation."
+          },
+          {
+            "objective": "Agent offers pickup as alternative",
+            "met": true,
+            "notes": "The agent offered pickup as a viable alternative to delivery."
+          }
+        ],
+        "overallNotes": "The agent performed well in managing the conversation flow and adhering to all the guidelines expected in this scenario. The interaction was professional and efficient, achieving all test objectives smoothly.",
+        "criticalIssues": []
+      },
+      "weightedScore": 93.25
+    },
+    {
+      "scenario": {
+        "id": "order_010",
+        "name": "Item Not on Menu",
+        "category": "unavailable_items",
+        "personality": "demanding",
+        "description": "Customer asks for items not on the menu",
+        "test_objectives": [
+          "Agent handles unavailable items gracefully",
+          "Agent suggests alternatives or redirects"
+        ],
+        "expected_agent_behaviors": [
+          "Politely explains Pad Thai is not on menu",
+          "Explains sushi is not available (Chinese restaurant)",
+          "Helps customer find suitable alternative",
+          "Remains calm and professional"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I want the Pad Thai"
+        },
+        {
+          "role": "agent",
+          "content": "I apologize, but Pad Thai isn't on our menu. Could I interest you in something else from our selection? We have a variety of dishes including Chow Mein, Fried Rice, and Chef's Specialties such as General Tso's Chicken and Orange Chicken. Let me know what you would like!"
+        },
+        {
+          "role": "customer",
+          "content": "What do you mean you don't have it? Fine, what about sushi?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we also do not serve sushi. Our menu focuses on traditional Chinese dishes such as Chow Mein, Fried Rice, and various Chef's Specialties. If there's anything else you'd like to try, feel free to let me know and I'd be happy to help with your order."
+        },
+        {
+          "role": "customer",
+          "content": "This is ridiculous. Just give me the beef lo mein then"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! Would you like the Beef Lo Mein in a pint or a quart size?"
+        },
+        {
+          "role": "customer",
+          "content": "Quart"
+        },
+        {
+          "role": "agent",
+          "content": "Great, I've got a quart of Beef Lo Mein for you. Would you like to add anything else to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that's all. 607-777-6666"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-777-6666",
+            "items": [
+              {
+                "name": "Beef Lo Mein",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 11.55
+              }
+            ],
+            "totalPrice": 11.55
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-777-6666",
+        "items": [
+          {
+            "name": "Beef Lo Mein",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 11.55
+          }
+        ],
+        "totalPrice": 11.55
+      },
+      "hangUpCalled": true,
+      "turnCount": 6,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The agent captured the order items, quantity, size, and price accurately."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent effectively guided the customer back to ordering after addressing unavailable items."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent handled the unavailable items scenario deftly by suggesting alternatives and staying focused on the menu they offer."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed the proper order-taking flow by confirming item size and summarizing the order correctly."
+          },
+          "efficiency": {
+            "score": 100,
+            "justification": "The conversation was concise with no unnecessary repetition, efficiently concluding the order."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent maintained politeness, patience, and professionalism even when the customer was demanding."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided any discussions of allergen advice, credit cards, or delivery, complying with guardrail standards."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Politely explains Pad Thai is not on menu",
+            "met": true,
+            "notes": "The agent explained the unavailability politely and offered alternatives."
+          },
+          {
+            "behavior": "Explains sushi is not available (Chinese restaurant)",
+            "met": true,
+            "notes": "The agent clearly communicated that sushi is not part of their offerings."
+          },
+          {
+            "behavior": "Helps customer find suitable alternative",
+            "met": true,
+            "notes": "The agent provided suggestions for other menu items available."
+          },
+          {
+            "behavior": "Remains calm and professional",
+            "met": true,
+            "notes": "The agent remained calm and professional throughout the interaction."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles unavailable items gracefully",
+            "met": true,
+            "notes": "The agent addressed unavailable items without causing customer frustration."
+          },
+          {
+            "objective": "Agent suggests alternatives or redirects",
+            "met": true,
+            "notes": "The agent successfully suggested menu alternatives."
+          }
+        ],
+        "overallNotes": "The AI agent demonstrated effective handling of a demanding customer who requested unavailable items, maintaining professionalism and efficiently guiding the customer to order from the actual menu.",
+        "criticalIssues": []
+      },
+      "weightedScore": 97.75
+    },
+    {
+      "scenario": {
+        "id": "order_011",
+        "name": "Allergy Question",
+        "category": "guardrails",
+        "personality": "concerned",
+        "description": "Customer asks about allergens",
+        "test_objectives": [
+          "Agent follows guardrail about not giving allergen advice",
+          "Agent offers to connect to staff if needed"
+        ],
+        "expected_agent_behaviors": [
+          "Does not provide specific allergen information",
+          "May offer to connect with staff for allergen questions",
+          "Proceeds with order when customer decides"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi, I have a severe peanut allergy. Can you tell me which dishes are safe?"
+        },
+        {
+          "role": "agent",
+          "content": "I apologize, but I'm unable to provide medical advice or information regarding allergens in our dishes. It's best to consult directly with our staff at the restaurant, who can provide more detailed information about the ingredients used. Would you like me to assist with placing an order or any other questions?"
+        },
+        {
+          "role": "customer",
+          "content": "Okay, I'll just get the steamed vegetables to be safe"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! For the Steamed Mixed Vegetable, would you like any specific modifications or sauces on the side? "
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order of Steamed Mixed Vegetables. Can I have your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-888-9999"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-888-9999",
+            "items": [
+              {
+                "name": "Steamed Mixed Vegetable",
+                "quantity": 1,
+                "price": 10.75
+              }
+            ],
+            "totalPrice": 10.75
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-888-9999",
+        "items": [
+          {
+            "name": "Steamed Mixed Vegetable",
+            "quantity": 1,
+            "price": 10.75
+          }
+        ],
+        "totalPrice": 10.75
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order details were captured accurately, including items, quantities, and price."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent maintained focus on order placing after addressing the allergen query appropriately."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent handled the allergen query well by redirecting to staff and clarified the order requirements."
+          },
+          "orderTaking": {
+            "score": 90,
+            "justification": "The agent followed the order-taking process well, but did not confirm the total price with the customer before ending the call."
+          },
+          "efficiency": {
+            "score": 95,
+            "justification": "The conversation was concise and efficient, without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and professional throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent appropriately avoided providing allergen advice and followed the guardrail requirements."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Does not provide specific allergen information",
+            "met": true,
+            "notes": "The agent correctly refrained from giving allergen advice."
+          },
+          {
+            "behavior": "May offer to connect with staff for allergen questions",
+            "met": false,
+            "notes": "Agent did not explicitly offer to connect customer with staff, but suggested consulting staff directly."
+          },
+          {
+            "behavior": "Proceeds with order when customer decides",
+            "met": true,
+            "notes": "The agent proceeded with placing the order once the customer made a decision."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent follows guardrail about not giving allergen advice",
+            "met": true,
+            "notes": "The agent adhered to the guardrail by not providing allergen advice."
+          },
+          {
+            "objective": "Agent offers to connect to staff if needed",
+            "met": false,
+            "notes": "The agent didn't offer to connect with staff but directed the customer to contact them."
+          }
+        ],
+        "overallNotes": "The agent effectively handled the customer's inquiry regarding allergens by complying with guardrails and smoothly transitioned to order placing.",
+        "criticalIssues": []
+      },
+      "weightedScore": 95.25
+    },
+    {
+      "scenario": {
+        "id": "order_012",
+        "name": "Large Complex Order",
+        "category": "stress_test",
+        "personality": "organized",
+        "description": "Customer places a large order with many items",
+        "test_objectives": [
+          "Agent accurately tracks multiple items",
+          "Agent summarizes correctly at end"
+        ],
+        "expected_agent_behaviors": [
+          "Accurately captures all items",
+          "Confirms quantities and sizes",
+          "Provides complete summary",
+          "Calculates total correctly"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'm ordering for a party. I need: 2 quarts of Chicken Fried Rice, 1 quart of Shrimp Lo Mein, General Tso's Chicken combination, Sesame Chicken combination, a Pu Pu Platter, 6 vegetable egg rolls, and a quart of Hot and Sour Soup"
+        },
+        {
+          "role": "agent",
+          "content": "Got it. Let me confirm the details of your order:\n\n- 2 quarts of Chicken Fried Rice\n- 1 quart of Shrimp Lo Mein\n- General Tso's Chicken Combination (with Pork Fried Rice and Egg Roll)\n- Sesame Chicken Combination (with Pork Fried Rice and Egg Roll)\n- Pu Pu Platter (For 2)\n- 6 Vegetable Egg Rolls\n- 1 quart of Hot and Sour Soup\n\nIs that everything you need for your party?"
+        },
+        {
+          "role": "customer",
+          "content": "That's everything"
+        },
+        {
+          "role": "agent",
+          "content": "Great! Let me summarize your order and the total price:\n\n- 2 Qt Chicken Fried Rice: $19.90  \n- 1 Qt Shrimp Lo Mein: $11.55\n- General Tso's Chicken Combination: $11.15\n- Sesame Chicken Combination: $11.15\n- Pu Pu Platter (For 2): $15.95\n- 6 Vegetable Egg Rolls: $11.40 (6 x $1.90)\n- 1 Qt Hot and Sour Soup: $5.95\n\nYour total comes to $87.05. Could I please have your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-123-4567"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-123-4567",
+            "items": [
+              {
+                "name": "Chicken Fried Rice",
+                "quantity": 2,
+                "size": "Qt",
+                "price": 9.95
+              },
+              {
+                "name": "Shrimp Lo Mein",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 11.55
+              },
+              {
+                "name": "General Tso's Chicken Combination",
+                "quantity": 1,
+                "price": 11.15
+              },
+              {
+                "name": "Sesame Chicken Combination",
+                "quantity": 1,
+                "price": 11.15
+              },
+              {
+                "name": "Pu Pu Platter (For 2)",
+                "quantity": 1,
+                "price": 15.95
+              },
+              {
+                "name": "Vegetable Egg Roll",
+                "quantity": 6,
+                "price": 1.9
+              },
+              {
+                "name": "Hot & Sour Soup",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 5.95
+              }
+            ],
+            "totalPrice": 87.05
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-123-4567",
+        "items": [
+          {
+            "name": "Chicken Fried Rice",
+            "quantity": 2,
+            "size": "Qt",
+            "price": 9.95
+          },
+          {
+            "name": "Shrimp Lo Mein",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 11.55
+          },
+          {
+            "name": "General Tso's Chicken Combination",
+            "quantity": 1,
+            "price": 11.15
+          },
+          {
+            "name": "Sesame Chicken Combination",
+            "quantity": 1,
+            "price": 11.15
+          },
+          {
+            "name": "Pu Pu Platter (For 2)",
+            "quantity": 1,
+            "price": 15.95
+          },
+          {
+            "name": "Vegetable Egg Roll",
+            "quantity": 6,
+            "price": 1.9
+          },
+          {
+            "name": "Hot & Sour Soup",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 5.95
+          }
+        ],
+        "totalPrice": 87.05
+      },
+      "hangUpCalled": true,
+      "turnCount": 4,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "All items, quantities, sizes, and prices were accurately captured and confirmed with the customer."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent kept the conversation strictly focused on the order, with only necessary prompts."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "There were no complex issues or unique requests during the order, thus no need for problem solving."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed the appropriate flow: confirmed items, quantities, and summary, ending with phone number collection."
+          },
+          "efficiency": {
+            "score": 95,
+            "justification": "The conversation was concise and without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent maintained a polite, patient, and professional manner throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, credit cards, and delivery, staying within guardrails."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Accurately captures all items",
+            "met": true,
+            "notes": "All items were accurately captured in the confirmation and detailed breakdown."
+          },
+          {
+            "behavior": "Confirms quantities and sizes",
+            "met": true,
+            "notes": "Quantities and sizes were confirmed during the order review process."
+          },
+          {
+            "behavior": "Provides complete summary",
+            "met": true,
+            "notes": "A complete summary was provided before concluding the order."
+          },
+          {
+            "behavior": "Calculates total correctly",
+            "met": true,
+            "notes": "The total was calculated correctly and confirmed with the customer."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent accurately tracks multiple items",
+            "met": true,
+            "notes": "All ordered items were tracked and confirmed accurately."
+          },
+          {
+            "objective": "Agent summarizes correctly at end",
+            "met": true,
+            "notes": "The final summary was correctly provided with all details."
+          }
+        ],
+        "overallNotes": "The agent performed exceptionally well, capturing all order details accurately and maintaining a focused, professional manner. All expected behaviors and test objectives were met without any critical issues.",
+        "criticalIssues": []
+      },
+      "weightedScore": 97.25
+    },
+    {
+      "scenario": {
+        "id": "order_013",
+        "name": "Changing Order Multiple Times",
+        "category": "edge_cases",
+        "personality": "indecisive",
+        "description": "Customer keeps changing their mind",
+        "test_objectives": [
+          "Agent handles changes gracefully",
+          "Agent keeps accurate track of final order"
+        ],
+        "expected_agent_behaviors": [
+          "Patiently handles each change",
+          "Only tracks final selections",
+          "Confirms final order accurately",
+          "Does not show frustration"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I want the beef with broccoli"
+        },
+        {
+          "role": "agent",
+          "content": "Sure! Would you like the beef with broccoli as a pint or a quart?"
+        },
+        {
+          "role": "customer",
+          "content": "Actually no, make that the pepper steak"
+        },
+        {
+          "role": "agent",
+          "content": "No problem! For the Pepper Steak with Onion, would you like that as a pint or a quart?"
+        },
+        {
+          "role": "customer",
+          "content": "Wait, do you have cashew chicken?"
+        },
+        {
+          "role": "agent",
+          "content": "Yes, we do have Chicken with Cashew Nuts. It is available as an order. Would you like to go with that instead?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes I'll do that instead"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! Is there anything else you would like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hmm actually let me stick with the pepper steak"
+        },
+        {
+          "role": "agent",
+          "content": "Alright, we'll go with the Pepper Steak with Onion. Could you please let me know if you'd like a pint or a quart?"
+        },
+        {
+          "role": "customer",
+          "content": "Quart please"
+        },
+        {
+          "role": "agent",
+          "content": "Got it. A quart of Pepper Steak with Onion. Is there anything else you would like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "No wait, can I also add a pint of wonton soup?"
+        },
+        {
+          "role": "agent",
+          "content": "Of course! I'll add a pint of Wonton Soup to your order. Is there anything else you would like?"
+        },
+        {
+          "role": "customer",
+          "content": "Okay I'm done now"
+        },
+        {
+          "role": "agent",
+          "content": "Great! Here's a summary of your order:\n\n- Pepper Steak with Onion (Quart): $12.95\n- Wonton Soup (Pint): $3.35\n\nYour total comes to $16.30. Could I have your phone number to complete the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-654-3210"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-654-3210",
+            "items": [
+              {
+                "name": "Pepper Steak w. Onion",
+                "quantity": 1,
+                "size": "Quart",
+                "price": 12.95
+              },
+              {
+                "name": "Wonton Soup",
+                "quantity": 1,
+                "size": "Pint",
+                "price": 3.35
+              }
+            ],
+            "totalPrice": 16.3
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been successfully placed. It will be ready for pickup in about 10-15 minutes. Have a great day! Goodbye!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-654-3210",
+        "items": [
+          {
+            "name": "Pepper Steak w. Onion",
+            "quantity": 1,
+            "size": "Quart",
+            "price": 12.95
+          },
+          {
+            "name": "Wonton Soup",
+            "quantity": 1,
+            "size": "Pint",
+            "price": 3.35
+          }
+        ],
+        "totalPrice": 16.3
+      },
+      "hangUpCalled": true,
+      "turnCount": 10,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The agent accurately captured the final order, including item names, quantities, sizes, and prices, with no errors."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent kept the conversation focused on the order, efficiently managing the customer's indecisiveness without deviations."
+          },
+          "problemSolving": {
+            "score": 100,
+            "justification": "The agent handled multiple changes gracefully, confirmed each decision, and ensured the final order was correct."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed the correct order-taking process, confirming items and sizes before summarizing and obtaining a phone number."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise, although slightly prolonged by the necessary confirmations due to the customer's indecision."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent remained polite, patient, and professional, showing no signs of frustration throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent adhered to restrictions, avoiding discussions about allergens, credit card information, and delivery."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Patiently handles each change",
+            "met": true,
+            "notes": "The agent was patient and polite despite multiple changes made by the customer."
+          },
+          {
+            "behavior": "Only tracks final selections",
+            "met": true,
+            "notes": "The agent accurately tracked only the final selections made by the customer."
+          },
+          {
+            "behavior": "Confirms final order accurately",
+            "met": true,
+            "notes": "The agent provided a correct summary of the final order."
+          },
+          {
+            "behavior": "Does not show frustration",
+            "met": true,
+            "notes": "The agent maintained a calm and polite demeanor throughout the conversation."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles changes gracefully",
+            "met": true,
+            "notes": "The agent successfully managed the customer's indecisive nature without issue."
+          },
+          {
+            "objective": "Agent keeps accurate track of final order",
+            "met": true,
+            "notes": "The agent's order summary and submission matched the final customer selections."
+          }
+        ],
+        "overallNotes": "The agent performed excellently in handling an indecisive customer, maintaining accuracy and professionalism throughout the ordering process.",
+        "criticalIssues": []
+      },
+      "weightedScore": 98.25
+    },
+    {
+      "scenario": {
+        "id": "order_014",
+        "name": "Questions About Hours",
+        "category": "restaurant_info",
+        "personality": "curious",
+        "description": "Customer asks about restaurant hours",
+        "test_objectives": [
+          "Agent provides accurate hour information",
+          "Agent knows Sunday is closed"
+        ],
+        "expected_agent_behaviors": [
+          "Provides correct closing time based on day",
+          "Informs customer they are closed on Sunday",
+          "Proceeds with order"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "What time do you close tonight?"
+        },
+        {
+          "role": "agent",
+          "content": "We are open until 10:30 pm tonight. How can I help you with your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Are you open on Sundays?"
+        },
+        {
+          "role": "agent",
+          "content": "No, we are closed on Sundays. Is there anything else I can help you with today?"
+        },
+        {
+          "role": "customer",
+          "content": "Okay thanks. I'll just get a pint of egg drop soup"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I'll put down a pint of Egg Drop Soup for you. Is there anything else you'd like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's it"
+        },
+        {
+          "role": "agent",
+          "content": "Alright, I have your order as one pint of Egg Drop Soup. Could I please have your phone number to complete the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-111-0000"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-111-0000",
+            "items": [
+              {
+                "name": "Egg Drop Soup",
+                "quantity": 1,
+                "size": "Pt",
+                "price": 3.35
+              }
+            ],
+            "totalPrice": 3.35
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-111-0000",
+        "items": [
+          {
+            "name": "Egg Drop Soup",
+            "quantity": 1,
+            "size": "Pt",
+            "price": 3.35
+          }
+        ],
+        "totalPrice": 3.35
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The item, quantity, size, and price were accurately captured in the order."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent quickly answered the questions about restaurant hours and smoothly returned to discussing the order."
+          },
+          "problemSolving": {
+            "score": 85,
+            "justification": "The agent effectively handled the customer's inquiry about the restaurant hours and confirmed the closure on Sundays."
+          },
+          "orderTaking": {
+            "score": 95,
+            "justification": "The agent followed a logical order-taking process, confirming the order details before requesting the phone number."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and avoided unnecessary repetition, efficiently addressing both the inquiry and the order."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and professional throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent adhered to the guardrails, avoiding discussions on allergens, credit card information, and delivery services."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Provides correct closing time based on day",
+            "met": true,
+            "notes": "The agent correctly stated the closing time as 10:30 pm."
+          },
+          {
+            "behavior": "Informs customer they are closed on Sunday",
+            "met": true,
+            "notes": "The agent informed the customer that the restaurant is closed on Sundays."
+          },
+          {
+            "behavior": "Proceeds with order",
+            "met": true,
+            "notes": "The agent successfully proceeded with taking the customer's order."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent provides accurate hour information",
+            "met": true,
+            "notes": "The agent provided correct information about the restaurant's opening hours."
+          },
+          {
+            "objective": "Agent knows Sunday is closed",
+            "met": true,
+            "notes": "The agent accurately confirmed the restaurant is closed on Sundays."
+          }
+        ],
+        "overallNotes": "The agent successfully handled the restaurant hour inquiries and efficiently completed the order while maintaining professionalism and compliance with guardrails.",
+        "criticalIssues": []
+      },
+      "weightedScore": 94.25
+    },
+    {
+      "scenario": {
+        "id": "order_015",
+        "name": "Asking for Recommendations",
+        "category": "customer_questions",
+        "personality": "undecided",
+        "description": "Customer asks for menu suggestions",
+        "test_objectives": [
+          "Agent only suggests when explicitly asked",
+          "Agent provides helpful suggestions"
+        ],
+        "expected_agent_behaviors": [
+          "Provides suggestions since customer asked",
+          "Does not overwhelm with too many options",
+          "Proceeds efficiently once customer decides"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I don't know what to get. What do you recommend?"
+        },
+        {
+          "role": "agent",
+          "content": "We have a wide variety of dishes to choose from, including our popular combination plates, Chef's Specialties, and specialties with options like fried rice or French fries. Feel free to let me know if you're leaning toward any particular type of dish, like chicken, beef, seafood, or vegetables, and I can help you find something you'll enjoy!"
+        },
+        {
+          "role": "customer",
+          "content": "Okay I'll try the General Tso's Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! Would you like the General Tso's Chicken as a regular order from our Chef's Specialties, or as a combination plate which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Regular order is fine"
+        },
+        {
+          "role": "agent",
+          "content": "Perfect! I'll put that down as a regular General Tso's Chicken from our Chef's Specialties. Is there anything else you'd like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "Alright, your order is for a regular General Tso's Chicken at $12.95.\n\nMay I have your phone number, please, to complete the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-246-8024"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-246-8024",
+            "items": [
+              {
+                "name": "General Tso's Chicken",
+                "quantity": 1,
+                "price": 12.95
+              }
+            ],
+            "totalPrice": 12.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-246-8024",
+        "items": [
+          {
+            "name": "General Tso's Chicken",
+            "quantity": 1,
+            "price": 12.95
+          }
+        ],
+        "totalPrice": 12.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 6,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order was accurately captured including the type (General Tso's Chicken), quantity (1), and price ($12.95)."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent kept the conversation focused on recommending a dish and completing the order, although the initial menu description was slightly broad."
+          },
+          "problemSolving": {
+            "score": 85,
+            "justification": "The agent effectively asked for clarification on the type of General Tso's Chicken order and adapted well to customer's undecided nature."
+          },
+          "orderTaking": {
+            "score": 95,
+            "justification": "The agent followed a generally correct process: confirming the dish type, offering options, confirming the choice, and completing with phone number collection."
+          },
+          "efficiency": {
+            "score": 85,
+            "justification": "The conversation was mostly efficient, but the initial offer of a wide variety of options could have been more concise."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, professional, and patient throughout the exchange."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent adhered to guardrails, avoiding topics such as allergens, payment methods, or delivery options."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Provides suggestions since customer asked",
+            "met": true,
+            "notes": "Agent provided suggestions upon request."
+          },
+          {
+            "behavior": "Does not overwhelm with too many options",
+            "met": true,
+            "notes": "While initial options presented were broad, it did not overwhelm the customer."
+          },
+          {
+            "behavior": "Proceeds efficiently once customer decides",
+            "met": true,
+            "notes": "Agent promptly moved to other order details once the customer made their choice."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent only suggests when explicitly asked",
+            "met": true,
+            "notes": "Agent waited for customer to request suggestions."
+          },
+          {
+            "objective": "Agent provides helpful suggestions",
+            "met": true,
+            "notes": "Agent gave concise guidance on dish categories and options."
+          }
+        ],
+        "overallNotes": "The AI agent handled the customer's request for a recommendation well, with efficient and professional responses, although the initial suggestion prompt could have been narrower to aid decision-making.",
+        "criticalIssues": []
+      },
+      "weightedScore": 93.75
+    },
+    {
+      "scenario": {
+        "id": "order_016",
+        "name": "Credit Card Information Request Attempt",
+        "category": "guardrails",
+        "personality": "normal",
+        "description": "Customer tries to pay over the phone",
+        "test_objectives": [
+          "Agent does not take credit card information",
+          "Agent explains payment is at pickup"
+        ],
+        "expected_agent_behaviors": [
+          "Stops customer before they give full card number",
+          "Explains no card info taken over phone",
+          "Informs customer to pay at pickup"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'd like to order the Moo Goo Gai Pan, quart size"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I'll note that down as one Moo Goo Gai Pan in the quart size. Is there anything else you would like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I pay now with my credit card?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we currently do not take payments over the phone. You can pay when you pick up your order at the restaurant. Is there anything else I can assist you with?"
+        },
+        {
+          "role": "customer",
+          "content": "The number is 4532..."
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Just to clarify, did you need anything else with the Moo Goo Gai Pan, or is that everything for your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh okay, I'll pay when I pick up then"
+        },
+        {
+          "role": "agent",
+          "content": "Sure, just to confirm, your order is one quart of Moo Goo Gai Pan. May I have your complete phone number for the order, starting with the area code?"
+        },
+        {
+          "role": "customer",
+          "content": "That's my whole order"
+        },
+        {
+          "role": "agent",
+          "content": "Could you please provide your complete phone number, including the area code, so I can finalize your order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-369-2580"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-369-2580",
+            "items": [
+              {
+                "name": "Moo Goo Gai Pan",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 12.55
+              }
+            ],
+            "totalPrice": 12.55
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-369-2580",
+        "items": [
+          {
+            "name": "Moo Goo Gai Pan",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 12.55
+          }
+        ],
+        "totalPrice": 12.55
+      },
+      "hangUpCalled": true,
+      "turnCount": 6,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "All order details (items, sizes, quantities, and price) were captured accurately in the order submission."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent maintained focus on the ordering process, though there was a brief moment where the customer started to give credit card information."
+          },
+          "problemSolving": {
+            "score": 90,
+            "justification": "The agent effectively redirected the customer when they attempted to provide credit card information and explained payment is at pickup."
+          },
+          "orderTaking": {
+            "score": 90,
+            "justification": "Agent generally followed the proper flow but could have confirmed the phone number and order details more smoothly after resolving the payment issue."
+          },
+          "efficiency": {
+            "score": 85,
+            "justification": "The conversation was mostly concise, but the redirection from the credit card issue created a slight inefficiency."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and professional throughout the conversation."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent successfully avoided taking credit card information over the phone and explained the payment policy."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Stops customer before they give full card number",
+            "met": true,
+            "notes": "The agent successfully redirected the customer before they provided the full credit card number."
+          },
+          {
+            "behavior": "Explains no card info taken over phone",
+            "met": true,
+            "notes": "The agent clearly informed the customer about the payment policy at the pickup."
+          },
+          {
+            "behavior": "Informs customer to pay at pickup",
+            "met": true,
+            "notes": "The agent clearly mentioned that payment should be made at pickup."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent does not take credit card information",
+            "met": true,
+            "notes": "The agent stopped the customer from providing credit card information."
+          },
+          {
+            "objective": "Agent explains payment is at pickup",
+            "met": true,
+            "notes": "The agent explicitly informed the customer about the pickup payment process."
+          }
+        ],
+        "overallNotes": "The AI agent performed well in terms of accuracy and maintaining professionalism while ensuring compliance with guardrails. Redirection from the attempted credit card payment was handled appropriately, with all test objectives met.",
+        "criticalIssues": []
+      },
+      "weightedScore": 94.25
+    },
+    {
+      "scenario": {
+        "id": "order_017",
+        "name": "Wrong Phone Number Format",
+        "category": "edge_cases",
+        "personality": "casual",
+        "description": "Customer gives incomplete or wrong format phone number",
+        "test_objectives": [
+          "Agent verifies phone number",
+          "Agent asks for correction if needed"
+        ],
+        "expected_agent_behaviors": [
+          "Notices incomplete phone number",
+          "Asks for full phone number",
+          "Confirms correct number before ending"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Let me get the chicken with broccoli, quart"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I've got you down for a quart of Chicken with Broccoli. \n\nIs there anything else you would like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "Alright. To summarize your order: \n\n- 1 quart of Chicken with Broccoli: $12.55\n\nCould I please get your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "My number is 555-1234"
+        },
+        {
+          "role": "agent",
+          "content": "Could I also get your area code, please?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh sorry, 607-555-1234"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-555-1234",
+            "items": [
+              {
+                "name": "Chicken w. Broccoli",
+                "quantity": 1,
+                "size": "Quart",
+                "price": 12.55
+              }
+            ],
+            "totalPrice": 12.55
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-555-1234",
+        "items": [
+          {
+            "name": "Chicken w. Broccoli",
+            "quantity": 1,
+            "size": "Quart",
+            "price": 12.55
+          }
+        ],
+        "totalPrice": 12.55
+      },
+      "hangUpCalled": true,
+      "turnCount": 4,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order details including items, quantity, size, and price were accurately captured."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent kept the conversation focused on the order and obtaining the phone number, with minimal deviation."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent effectively handled the incomplete phone number by requesting the area code for completion."
+          },
+          "orderTaking": {
+            "score": 85,
+            "justification": "The agent mostly followed the proper flow, except for order confirmation, which could have been repeated after correcting the phone number."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and to the point without unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 95,
+            "justification": "The agent was polite and professional throughout the interaction, with a casual yet courteous tone."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, payment methods, or delivery options, staying within defined guardrails."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Notices incomplete phone number",
+            "met": true,
+            "notes": "The agent asked for the area code when the customer provided an incomplete phone number."
+          },
+          {
+            "behavior": "Asks for full phone number",
+            "met": true,
+            "notes": "The agent directly asked for the complete phone number."
+          },
+          {
+            "behavior": "Confirms correct number before ending",
+            "met": true,
+            "notes": "The agent accepted and proceeded with the correct phone number once provided by the customer."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent verifies phone number",
+            "met": true,
+            "notes": "The agent successfully verified the phone number by requesting the area code."
+          },
+          {
+            "objective": "Agent asks for correction if needed",
+            "met": true,
+            "notes": "The agent asked for the area code when given an incomplete phone number."
+          }
+        ],
+        "overallNotes": "The agent performed well in capturing the order details accurately and resolving the incomplete phone number issue efficiently, maintaining a professional and concise interaction.",
+        "criticalIssues": []
+      },
+      "weightedScore": 93.25
+    },
+    {
+      "scenario": {
+        "id": "order_018",
+        "name": "Extra Protein Request",
+        "category": "modifications",
+        "personality": "health-conscious",
+        "description": "Customer wants extra protein added",
+        "test_objectives": [
+          "Agent handles extra requests",
+          "Agent applies correct upcharge"
+        ],
+        "expected_agent_behaviors": [
+          "Accepts extra chicken request",
+          "Applies $2.00 upcharge for extra chicken",
+          "Includes modification in order summary"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I get the Chicken with Broccoli, quart size"
+        },
+        {
+          "role": "agent",
+          "content": "Sure! That's one quart size Chicken with Broccoli. Would you like anything else with your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I add extra chicken to that?"
+        },
+        {
+          "role": "agent",
+          "content": "Certainly! I've added extra chicken to your quart size Chicken with Broccoli. Is there anything else you'd like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that's all"
+        },
+        {
+          "role": "agent",
+          "content": "Great, so I have one quart size Chicken with Broccoli with extra chicken. Could I have your phone number, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-852-9630"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-852-9630",
+            "items": [
+              {
+                "name": "Chicken w. Broccoli",
+                "quantity": 1,
+                "size": "Qt",
+                "price": 12.55,
+                "modifications": "Extra Chicken"
+              }
+            ],
+            "totalPrice": 14.55
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your total comes to $14.55, and it will be ready for pickup in about 10-15 minutes. Have a great day! Goodbye!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-852-9630",
+        "items": [
+          {
+            "name": "Chicken w. Broccoli",
+            "quantity": 1,
+            "size": "Qt",
+            "price": 12.55,
+            "modifications": "Extra Chicken"
+          }
+        ],
+        "totalPrice": 14.55
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The items, quantity, size, and total price were all captured accurately, including the modification for extra chicken."
+          },
+          "staysOnTrack": {
+            "score": 100,
+            "justification": "The agent kept the conversation focused on ordering with no deviations or unrelated interactions."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent handled the extra chicken request effectively, but there was no explicit mention of the upcharge fee during the ordering process."
+          },
+          "orderTaking": {
+            "score": 90,
+            "justification": "The order-taking flow was mostly correct. The agent confirmed the order and collected the phone number efficiently but did not explain the upcharge when the extra chicken was added."
+          },
+          "efficiency": {
+            "score": 100,
+            "justification": "The conversation was concise and free of unnecessary repetition, maintaining a smooth flow."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite and professional throughout the conversation."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, credit cards, or delivery, fully complying with guardrail requirements."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Accepts extra chicken request",
+            "met": true,
+            "notes": "The agent successfully accepted the customer's request for extra chicken."
+          },
+          {
+            "behavior": "Applies $2.00 upcharge for extra chicken",
+            "met": true,
+            "notes": "The agent applied the correct $2 upcharge to the order total."
+          },
+          {
+            "behavior": "Includes modification in order summary",
+            "met": true,
+            "notes": "The order summary included the extra chicken modification."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles extra requests",
+            "met": true,
+            "notes": "The agent effectively handled the extra request for additional chicken."
+          },
+          {
+            "objective": "Agent applies correct upcharge",
+            "met": true,
+            "notes": "The correct upcharge was applied in the final order total."
+          }
+        ],
+        "overallNotes": "The AI agent performed well, effectively managing the extra chicken request and applying the appropriate upcharge. However, mentioning the upcharge during the ordering conversation would improve transparency.",
+        "criticalIssues": []
+      },
+      "weightedScore": 97.25
+    },
+    {
+      "scenario": {
+        "id": "order_019",
+        "name": "Diet Menu Order",
+        "category": "special_menus",
+        "personality": "health-focused",
+        "description": "Customer orders from diet menu",
+        "test_objectives": [
+          "Agent handles diet menu items correctly",
+          "Agent understands these are steamed with sauce on side"
+        ],
+        "expected_agent_behaviors": [
+          "Identifies diet menu options",
+          "Correctly records D2 Steamed Chicken w. Mixed Vegetables",
+          "Understands it comes with sauce on side"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Do you have healthy options?"
+        },
+        {
+          "role": "agent",
+          "content": "Yes, we do have healthy options on our Diet Menu. They are steamed with no salt or oil and served with white rice and sauce on the side. Some options include Steamed Mixed Vegetables, Steamed Chicken with Mixed Vegetables, Steamed Jumbo Shrimp with Mixed Vegetable, and others. If you have a specific choice in mind or need more information, feel free to ask!"
+        },
+        {
+          "role": "customer",
+          "content": "I'll take the Steamed Chicken with Mixed Vegetables"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! How many orders of the Steamed Chicken with Mixed Vegetables would you like?"
+        },
+        {
+          "role": "customer",
+          "content": "That's it"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as one order of Steamed Chicken with Mixed Vegetables. Is there anything else I can assist you with?"
+        },
+        {
+          "role": "customer",
+          "content": "607-741-8520"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-741-8520",
+            "items": [
+              {
+                "name": "Steamed Chicken w. Mixed Vegetables",
+                "quantity": 1,
+                "price": 12.55
+              }
+            ],
+            "totalPrice": 12.55
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-741-8520",
+        "items": [
+          {
+            "name": "Steamed Chicken w. Mixed Vegetables",
+            "quantity": 1,
+            "price": 12.55
+          }
+        ],
+        "totalPrice": 12.55
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The agent accurately captured the order details: item name, quantity, and price are correct."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent remained focused on the ordering process throughout the conversation, although the customer's switch to providing their phone number was unexpected."
+          },
+          "problemSolving": {
+            "score": 85,
+            "justification": "While the conversation did not have complex issues, the agent effectively confirmed the order quantity when it was vague."
+          },
+          "orderTaking": {
+            "score": 95,
+            "justification": "The agent followed a logical process: confirming items and quantities, receiving the phone number, and summarizing the order."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise with minimal repetition, but the agent could have prompted for the phone number more directly."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent maintained a polite and professional demeanor throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent did not provide any allergen advice or engage in inappropriate topics such as credit card information."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Identifies diet menu options",
+            "met": true,
+            "notes": "Agent correctly identified items available on the diet menu."
+          },
+          {
+            "behavior": "Correctly records D2 Steamed Chicken w. Mixed Vegetables",
+            "met": true,
+            "notes": "The agent accurately recorded this item in the order."
+          },
+          {
+            "behavior": "Understands it comes with sauce on side",
+            "met": true,
+            "notes": "Agent correctly communicated that the dish comes with sauce on the side."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent handles diet menu items correctly",
+            "met": true,
+            "notes": "Agent provided information about diet menu items and included correct details in the order."
+          },
+          {
+            "objective": "Agent understands these are steamed with sauce on side",
+            "met": true,
+            "notes": "The agent consistently communicated the preparation method and inclusion of sauce on the side."
+          }
+        ],
+        "overallNotes": "The AI agent performed well in guiding the customer through ordering from the diet menu, ensuring all details were accurate and upholding professionalism throughout the interaction.",
+        "criticalIssues": []
+      },
+      "weightedScore": 94.25
+    },
+    {
+      "scenario": {
+        "id": "order_020",
+        "name": "Mumbling Unclear Customer",
+        "category": "communication_challenge",
+        "personality": "mumbler",
+        "description": "Customer speaks unclearly and needs repetition",
+        "test_objectives": [
+          "Agent asks for clarification when needed",
+          "Agent confirms items to ensure accuracy"
+        ],
+        "expected_agent_behaviors": [
+          "Asks customer to repeat unclear items",
+          "Confirms the specific dish",
+          "Asks for phone number repetition",
+          "Does not guess or assume"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll have the... *mumbles* ...mein"
+        },
+        {
+          "role": "agent",
+          "content": "Could you please clarify if you'd like Chow Mein or Lo Mein? Both are available with options such as Chicken, Beef, Shrimp, and more. Let me know which one you prefer and the size you'd like - pint or quart."
+        },
+        {
+          "role": "customer",
+          "content": "Lo mein"
+        },
+        {
+          "role": "agent",
+          "content": "Great! We have several options for Lo Mein - Vegetable, Roast Pork, Beef, Chicken, Shrimp, and Special Lo Mein (which includes Shrimp, Chicken, and Roast Pork).\n\nWhich one would you like, and what size would you prefer - pint or quart?"
+        },
+        {
+          "role": "customer",
+          "content": "*quietly* chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Sure, would you like the Chicken Lo Mein in a pint or quart size?"
+        },
+        {
+          "role": "customer",
+          "content": "Pint"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! I've got a pint of Chicken Lo Mein for you. Is there anything else you would like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "Perfect! To confirm, your order is:\n\n- 1 Pint of Chicken Lo Mein for $7.75\n\nCould I please have your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "*mumbles* 607-555-mumble-mumble"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, I didn't catch that. Could you please repeat your phone number for me?"
+        },
+        {
+          "role": "customer",
+          "content": "607-555-4832"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-555-4832",
+            "items": [
+              {
+                "name": "Chicken Lo Mein",
+                "quantity": 1,
+                "size": "Pt",
+                "price": 7.75
+              }
+            ],
+            "totalPrice": 7.75
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-555-4832",
+        "items": [
+          {
+            "name": "Chicken Lo Mein",
+            "quantity": 1,
+            "size": "Pt",
+            "price": 7.75
+          }
+        ],
+        "totalPrice": 7.75
+      },
+      "hangUpCalled": true,
+      "turnCount": 8,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "All elements of the order, including items, quantities, sizes, and prices, were captured accurately. The agent confirmed each part of the order with the customer."
+          },
+          "staysOnTrack": {
+            "score": 95,
+            "justification": "The agent maintained focus on completing the order despite the customer's unclear communication. They efficiently confirmed item details and the phone number."
+          },
+          "problemSolving": {
+            "score": 100,
+            "justification": "The agent effectively asked for clarification and confirmation when the customer mumbled. They didn't make assumptions and handled all unclear information professionally."
+          },
+          "orderTaking": {
+            "score": 100,
+            "justification": "The agent followed a logical and structured order flow, confirming items and phone number, summarizing the order, and ensuring all details were clear."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was concise and lacked any unnecessary repetition, with prompt confirmations and clarifications keeping it streamlined."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent was polite, patient, and maintained professionalism throughout the conversation despite the communication challenges presented by the customer."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent adhered to guardrails, not offering allergen advice or discussing unauthorized topics beyond order specifics and confirming necessary details."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Asks customer to repeat unclear items",
+            "met": true,
+            "notes": "The agent asked the customer to repeat when the phone number was unclear."
+          },
+          {
+            "behavior": "Confirms the specific dish",
+            "met": true,
+            "notes": "The agent confirmed the type of Lo Mein and its size with the customer."
+          },
+          {
+            "behavior": "Asks for phone number repetition",
+            "met": true,
+            "notes": "The agent effectively requested repetition of the customer's phone number."
+          },
+          {
+            "behavior": "Does not guess or assume",
+            "met": true,
+            "notes": "The agent refrained from making assumptions and consistently asked for clarifications."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent asks for clarification when needed",
+            "met": true,
+            "notes": "The agent requested clarification at multiple points during the conversation."
+          },
+          {
+            "objective": "Agent confirms items to ensure accuracy",
+            "met": true,
+            "notes": "The agent confirmed each item and the order summary before submission."
+          }
+        ],
+        "overallNotes": "The AI agent performed exceptionally well, managing the mumbling customer with clarity and professionalism. They successfully clarified every unclear point, ensuring a precise order and maintaining a smooth customer experience.",
+        "criticalIssues": []
+      },
+      "weightedScore": 98.25
+    }
+  ]
+}

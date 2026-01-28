@@ -1,120 +1,40 @@
-// Loads environment varibales from .env
+// Text Chat Agent using OpenAI Agents SDK
+// Run: node chat_agent.js
+// Open: http://localhost:3001
+
 import dotenv from 'dotenv';
-// loads variables from .env into process.env
 dotenv.config();
-// Node.js web framework: handles HTTP routing, request/response management. 
-// Using it to set up server end points
+
 import express from 'express';
-// ws is a lightweight websocket library
-// Creates a persistent two way connect between client and server
-import { WebSocketServer, WebSocket } from 'ws';
-// Node's built in http module, using to create http server that both express and websocket can share
 import { createServer } from 'http';
-// Openai's SDK for building real-time voice agents
-// RealtimeAgent defines the agent's personality, instructions, and tools
-// RealtimeSession manages an active conversation with the agent
-// tool is a function for defining callable tools that the agent can use mid conversation
-import { RealtimeAgent, RealtimeSession, tool } from '@openai/agents/realtime';
-// Extension package with integration for third party services
-// Bridges Twilio's audio stream format with OpenAI's realtime API, handling audio endcoding/decoding
-import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
-// Typescripts schema validation library for input/output for agent tools
-// Checks if json sent to and from agent tools is valid
+import { Agent, run, tool } from '@openai/agents';
 import { z } from 'zod';
-// Twillio's Node SDK
-import Twilio from 'twilio';
 import Database from 'better-sqlite3';
-import { broadcastNewOrder } from './socket.js';
 
-
-
-
-// Checks to see if variables have been loaded
-console.log('API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
-console.log('API Key loaded:', process.env.TWILIO_ACCOUNT_SID ? 'Yes' : 'No');
-console.log('API Key loaded:', process.env.TWILIO_AUTH_TOKEN ? 'Yes' : 'No');
-
-
+console.log('OpenAI API Key loaded:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
 // Open database connection
 const db = new Database('fareast.db');
 db.pragma('foreign_keys = ON');
 
-
-
-// Twillio class constructor for accessing twillio methods
-// Creates a Twillio client using keys
-// Allows you to control phone calls
-// Client front end
-// I can send requests and get requests back
-const twilioClient = Twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
-
-// Generate order number: simple incrementing number (1, 2, 3...) that resets daily
+// Generate order number
 function generateOrderNumber() {
-  const today = new Date().toISOString().slice(0, 10); // '2025-12-26'
-  
-  // Get count of orders created today
+  const today = new Date().toISOString().slice(0, 10);
   const countResult = db.prepare(`
-    SELECT COUNT(*) as count FROM orders 
+    SELECT COUNT(*) as count FROM orders
     WHERE DATE(created_at) = DATE(?)
   `).get(today);
-  
   return (countResult.count + 1).toString();
 }
 
-// Creates an Express web application
-const app = express();
-const server = createServer(app);
-
-// Incoming call webhook
-
-// Creates a POST endpoint at /incoming-call
-// When someone called the Twillio phone number, Twilio sends the request here
-// express.urlencoded() parses the form data Twillio sends
-app.post('/incoming-call', express.urlencoded({ extended: false }), (req, res) => {
-  //Extracts the unqiue caller ID from Twilio's request
-  const callSid = req.body.CallSid;
-  console.log('Incoming call:', callSid);
-  
-  // Responds to Twillio with TwiML (Twilio's XML language)
-  // <Response> - Required wrapper
-  // <Connect> - Tells Twilio to connect the call somewhere
-  // <Stream url="..." - Tells Twilio to stream the call's audio to my WebSocket server
-  // Parameter> - Passes the call ID along with the stream
-  res.type('xml').send(`
-    <Response>
-      <Connect>
-        <Stream url="wss://fe-local-call.fareastbackend.us/media-stream">
-          <Parameter name="callSid" value="${callSid}" />
-        </Stream>
-      </Connect>
-    </Response>
-  `);
-});
-
-
-// WebSocket server to listen for Twilio audio stream
-// Creates the websocket server
-// Attatched to the same server as Express
-// Listens at the path /media-stream
-const wss = new WebSocketServer({ server, path: '/media-stream' });
-
-
-
-
 const AGENT_INSTRUCTIONS = `
 # Personality
-Start off the call with "Hello, this is Far East Chinese Restaurant. How can I help you today?"
-
+Start off with "Hello, this is Far East Chinese Restaurant. How can I help you today?"
 
 You are Sarah, a friendly and efficient virtual assistant for Far East Chinese Restaurant.
 You are polite, patient, and always ready to help customers place their orders.
-You don't assume you know what the customer wants, make sure you ask clarifying questions. Especially with combination plates (if they want a combination plate or a regular plate), the size of their order, if it's a specialty (Specialties are (A1-A8)) then ask if they want it plain or with French fries or fried rice (and also what kind of fried rice they want). 
-Make it a goal to try to be as efficient as possible, try to take the customer's order and end the call as quickly as possible.
+You don't assume you know what the customer wants, make sure you ask clarifying questions. Especially with combination plates (if they want a combination plate or a regular plate), the size of their order, if it's a specialty (Specialties are (A1-A8)) then ask if they want it plain or with French fries or fried rice (and also what kind of fried rice they want).
+Make it a goal to try to be as efficient as possible, try to take the customer's order and end the conversation as quickly as possible.
 
 You have extensive knowledge of the menu and can answer questions about ingredients, preparation, and specials.
 Don't give suggestions unless asked by the customer
@@ -137,39 +57,37 @@ Don't give suggestions unless asked by the customer
 *  What the customer's phone number is (Only ask this at the end, after you take the order). Only phone number is needed - do NOT ask for customer's name.
       - Phone numbers should be 10 digits (or 7 digits for local). If a customer provides an incomplete number like "555-1234", ask for the area code: "Could I also get your area code?"
 
-
 # Environment
 
-You are assisting customers over the phone.
-The customer is calling to place an order for takeout. (THERE IS NO DELIVERY).
+You are assisting customers over text chat.
+The customer is placing an order for takeout. (THERE IS NO DELIVERY).
 You have access to the current menu, pricing, and restaurant information
 Allow for substitutions and modifications of menu items
-You also have access to tools that allow you to hang up the phone and submit the customer's order to the kitchen staff
+You also have access to a tool to submit the customer's order
 
 # Tone
 
 Your responses are friendly, clear, concise, and professional.
 You use a friendly and welcoming tone.
-You speak at a fast pace and enunciate clearly.
 You use positive language and avoid slang or jargon.
 You are patient and understanding, even when customers are indecisive or have special requests.
 
 # Goal
 *  Your primary goal is to accurately and efficiently take customer orders.
 *  Be efficient with getting the customer's accurate order as quickly as possible.
-*  Make sure you accurately get the customer's phone number at the end of the call.
+*  Make sure you accurately get the customer's phone number at the end.
 
 2.  Order Taking:
     *   Listen to the customer carefully and answer any questions.
     *   Accurately record each item the customer orders requests.
     *   Confirm the quantity and size if not stated.
 
-3.  Order Confirmation (At the end of the call):
+3.  Order Confirmation (At the end):
     *   Repeat the entire order back to the customer to ensure accuracy.
     *   Confirm the total price, including tax.
     *   Ask for the customer's phone number for the order (phone number only, do not ask for name).
 
-4.  Payment and Pickup/Delivery:
+4.  Payment and Pickup:
     *   Inform the customer of the price and the estimated pickup time. Average order (2-3 entrees) will be 10-15 minutes.
 
 Success is measured by the accuracy of the orders taken, the efficiency of the order-taking process, and customer satisfaction.
@@ -177,7 +95,7 @@ Success is measured by the accuracy of the orders taken, the efficiency of the o
 # Guardrails
 
 Never offer medical advice or information about allergens.
-Never ask for sensitive personal information, such as credit card numbers, over the phone.
+Never ask for sensitive personal information, such as credit card numbers.
 Never engage in inappropriate or offensive conversations.
 If you are unsure of an answer or have issues with the customer, politely ask if the customer would like to speak to a person.
 If the restaurant is closed or unable to fulfill the order, apologize to the customer and explain the situation.
@@ -185,11 +103,9 @@ Never offer delivery. Apologize about it if the customer asks for delivery.
 
 # Tools
 
-You have access to the following tools and MUST use them to complete orders:
+You have access to the following tool:
 
-*  submit_order: CRITICAL - You MUST call this tool to submit every order. Without calling this tool, the order is NOT placed. Call this tool IMMEDIATELY after collecting the phone number and confirming the order. Make sure item names match the menu exactly. Any modifications go in the modification field. Submit the customer order ONLY ONCE per call.
-
-*  hang_up_call: Use this tool to end the phone call ONLY after you have: 1) Called submit_order successfully, 2) Told the customer their total and pickup time (10-15 minutes), and 3) Said goodbye. NEVER hang up without first calling submit_order.
+*  submit_order: CRITICAL - You MUST call this tool to submit every order. Without calling this tool, the order is NOT placed. Call this tool IMMEDIATELY after collecting the phone number and confirming the order. Make sure item names match the menu exactly. Any modifications go in the modification field. Submit the customer order ONLY ONCE per conversation.
 
 IMPORTANT ORDER COMPLETION FLOW:
 1. Collect order items with sizes
@@ -197,13 +113,9 @@ IMPORTANT ORDER COMPLETION FLOW:
 3. Summarize the order with total price
 4. Ask for phone number
 5. Call submit_order tool (REQUIRED)
-6. Say goodbye with pickup time
-7. Call hang_up_call tool
+6. Say goodbye with pickup time (10-15 minutes)
 
 FLEXIBILITY: If a customer provides their phone number early (before you ask), acknowledge it and continue. If a customer says "that's all" without answering all questions, fill in reasonable defaults (regular order, standard options) rather than repeatedly asking the same question.
-
-
-
 
 #  Price and Substitution policy
 Only tell the customer the final price after calculations at the end.
@@ -214,8 +126,7 @@ The Price will be based on item, quantity, extras, and substitutions
 Starting with item and quantity:
 Price = item * quantity
 
-
-Substitutions can be made for any item as long as it is on the menu. 
+Substitutions can be made for any item as long as it is on the menu.
 Use this formula to calculate subsitutions:
 (Item being ordered) * (substitution / Item being substituted)
 
@@ -243,9 +154,6 @@ CHEF'S SPECIALTIES vs COMBINATION PLATES - Many items appear in BOTH sections:
 When a customer asks for these popular items, ALWAYS ask: "Would you like that as a regular order or as a combination plate which comes with pork fried rice and an egg roll?"
 
 COMBINATION PLATES (1-20) all come with Pork Fried Rice + Egg Roll for one fixed price. Substitutions allowed.
-
-
-
 
 # Menu
 
@@ -516,300 +424,452 @@ HOT & SPICY: We can alter the spice to suit your taste.
 ======================================================================
 `;
 
-// Web Socket Connection handler
-// When Twilio connects to the WebSocket, this function runs
-// twilioWs is the WebSocket connection to Twilio
-// function takes in connection and twilio connection
-wss.on('connection', (twilioWs) => {
-  let callSid = null;
-  
-  // Listen for the stream start to get callSid
-  // Listens for message from Twillio
-  // takes in message and the data that twilio passes in
-  twilioWs.on('message', (data) => {
+// Define the submit_order tool
+const submitOrder = tool({
+  name: 'submit_order',
+  description: 'Submit the customer order after confirming all details with the customer. Use this after you have confirmed the complete order, total price, and collected their phone number.',
+  parameters: z.object({
+    phoneNumber: z.string().describe('Customer phone number for the order'),
+    items: z.array(z.object({
+      name: z.string().describe('Name of the menu item'),
+      quantity: z.number().describe('How many of this item'),
+      size: z.string().describe('Size: "Pt" (pint), "Qt" (quart), "Combination", or "N/A" if not applicable'),
+      price: z.number().describe('Price for this line item'),
+      modifications: z.string().describe('Any special instructions or modifications, or empty string if none')
+    })).describe('Array of items in the order'),
+    notes: z.string().describe('Any special instructions, or empty string if none'),
+    totalPrice: z.number().describe('Total price of the order including tax'),
+  }),
+  execute: async ({ phoneNumber, items, notes, totalPrice }) => {
     try {
-      // Parse the message as JSON
-      const msg = JSON.parse(data);
-      // Check if its a start event and callSid is stored in customParameters
-      if (msg.event === 'start' && msg.start?.customParameters?.callSid) {
-        // Saves the callSid for later use (like needing to hang up)
-        callSid = msg.start.customParameters.callSid;
-        console.log('Got callSid:', callSid);
-      }
-    } catch (e) {}
-  });
+      const orderNumber = generateOrderNumber();
 
+      const insertOrder = db.prepare(`
+        INSERT INTO orders (order_number, phone_number, status, order_type, total, notes)
+        VALUES (?, ?, 'pending', 'pickup', ?, ?)
+      `);
 
-      /*
-    Tool that the AI agent can use to submit order
-    Log it for now
-    I need it in JSON format
-    Information I need:
-    - Phone number
-    - Items and Quantity
-    - Any edits or notes
-    - Price
-     */
-
-    /*
-    Example output: 
-    {
-      "phoneNumber": "607-555-1234",
-      "items": [
-        { "name": "General Tso's Chicken", "quantity": 1, "size": null, "price": 12.95 },
-        { "name": "Pork Fried Rice", "quantity": 1, "size": "Qt", "price": 9.95 }
-      ],
-      "notes": "Extra sauce on the side",
-      "totalPrice": 24.74,
-      "timestamp": "2025-12-25T15:30:00.000Z",
-      "callSid": "CA1234567890abcdef"
-    }
-
-    ┌─────────────────────────────────────────────────────────────┐
-    │                     AI AGENT (Sarah)                        │
-    │                                                             │
-    │  "Okay, I have your order: General Tso's Chicken,          │
-    │   pork fried rice, total is $24.74. Your phone             │
-    │   number is 607-555-1234. Let me submit that..."           │
-    │                                                             │
-    │              ↓ AI decides to call submit_order              │
-    └─────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │                    ZOD VALIDATION                           │
-    │                                                             │
-    │  ✓ phoneNumber is a string                                 │
-    │  ✓ items is an array of objects with required fields       │
-    │  ✓ totalPrice is a number                                  │
-    └─────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │                   EXECUTE FUNCTION                          │
-    │                                                             │
-    │  1. Build order object                                      │
-    │  2. Add timestamp + callSid                                 │
-    │  3. Log to console (JSON format)                           │
-    │  4. Return success message                                  │
-    └─────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │                     AI AGENT (Sarah)                        │
-    │                                                             │
-    │  "Your order has been submitted! It'll be ready            │
-    │   in about 15 minutes. Thank you for calling!"             │
-    └─────────────────────────────────────────────────────────────┘
-    */
-    const submitOrder = tool({
-      name: 'submit_order',
-      description: 'Submit the customer order after confirming all details with the customer. Use this after you have confirmed the complete order, total price, and collected their phone number.',
-      
-      parameters: z.object({
-        phoneNumber: z.string().describe('Customer phone number for the order'),
-        items: z.array(z.object({
-          name: z.string().describe('Name of the menu item'),
-          quantity: z.number().describe('How many of this item'),
-          size: z.string().optional().describe('Size if applicable: "Pt" (pint), "Qt" (quart), or "Combination"'),
-          price: z.number().describe('Price for this line item'),
-          modifications: z.string().optional().describe('Any special instructions or modifications')
-        })).describe('Array of items in the order'),
-        notes: z.string().optional().describe('Any special instructions'),
-        totalPrice: z.number().describe('Total price of the order including tax'),
-      }),
-    
-      execute: async ({ phoneNumber, items, notes, totalPrice }) => {
-        try {
-          // Generate unique order number
-          const orderNumber = generateOrderNumber();
-          
-          // Insert into orders table
-          const insertOrder = db.prepare(`
-            INSERT INTO orders (order_number, phone_number, status, order_type, total, notes)
-            VALUES (?, ?, 'pending', 'pickup', ?, ?)
-          `);
-          
-          const orderResult = insertOrder.run(
-            orderNumber,
-            phoneNumber,
-            totalPrice,
-            notes || ''
-          );
-          
-          const orderId = orderResult.lastInsertRowid;
-          
-          // Insert each item into order_items table
-          const insertItem = db.prepare(`
-            INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, size, unit_price, total, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          // Try to find menu_item_id by name (optional - helps link to menu)
-          const findMenuItem = db.prepare(`
-            SELECT id FROM menu_items WHERE name LIKE ? LIMIT 1
-          `);
-          
-          for (const item of items) {
-            // Try to match item name to menu_items table
-            const menuItem = findMenuItem.get(`%${item.name}%`);
-            const menuItemId = menuItem ? menuItem.id : null;
-            
-            // Calculate line total
-            const lineTotal = item.quantity * item.price;
-            
-            insertItem.run(
-              orderId,
-              menuItemId,
-              item.name,
-              item.quantity,
-              item.size || null,
-              item.price,
-              lineTotal,
-              item.modifications || ''
-            );
-          }
-          
-          // Log the order
-          console.log('📝 NEW ORDER SAVED TO DATABASE:');
-          console.log(`   Order #: ${orderNumber}`);
-          console.log(`   Phone: ${phoneNumber}`);
-          console.log(`   Items (${items.length}):`);
-          items.forEach((item, i) => {
-            const mods = item.modifications ? ` [${item.modifications}]` : '';
-            console.log(`     ${i + 1}. ${item.name} x${item.quantity} @ $${item.price.toFixed(2)}${mods}`);
-          });
-          console.log(`   Total: $${totalPrice.toFixed(2)}`);
-          console.log(`   Call SID: ${callSid}`);
-
-          // Broadcast order to connected frontend clients
-          broadcastNewOrder({
-            orderNumber,
-            phoneNumber,
-            items: items.map(item => ({
-              name: item.name,
-              quantity: item.quantity,
-              size: item.size || null,
-              modifications: item.modifications || ''
-            })),
-            notes: notes || '',
-            time: new Date().toISOString(),
-            total: totalPrice,
-            status: 'pending'
-          });
-          
-          return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}`;
-          
-        } catch (error) {
-          console.error('Failed to save order:', error);
-          return `Order recorded. Total: $${totalPrice.toFixed(2)}`;
-        }
-      },
-    });
-  /*
-    // Function that runs when the AI calls the tool
-    // async: this function can do that takes time, such as await
-    // { phoneNumber, items, notes, totalPrice } = destructures the parameters the AI provided
-    execute: async ({ phoneNumber, items, notes, totalPrice }) => {
-      // Build the order object
-      // 
-      const order = {
+      const orderNotes = notes && notes.trim() ? notes : '';
+      const orderResult = insertOrder.run(
+        orderNumber,
         phoneNumber,
-        items,
-        notes: notes || '',
         totalPrice,
-        timestamp: new Date().toISOString(),
-        callSid: callSid,
-      };
-      
-      console.log('📝 NEW ORDER SUBMITTED:');
-      console.log(JSON.stringify(order, null, 2));
-      
-      // TODO: Save to database or send to kitchen display system
-      
-      return `Order submitted successfully. Total: $${totalPrice.toFixed(2)}`;
-    },
-  })
-  */
-  
-  // Create hang up tool with access to callSid
-  const hangUpTool = tool({
-    // Defines the tools that the tools the AI can use: name, description, and parameters(inputs that it takes)
-    name: 'hang_up_call',
-    description: 'End the phone call. ONLY call this AFTER you have: 1) submitted the order, 2) told the customer their order will take 10-15 minutes, 3) said "Have a great day! Bye bye!" out loud. The customer MUST hear the goodbye message before hanging up.',
-    parameters: z.object({}),
+        orderNotes
+      );
 
-    // Function that runs when the AI calls this tool
-    execute: async () => {
-      console.log('Agent requested to hang up! CallSid:', callSid);
-      console.log('Waiting 5 seconds before hanging up...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      // Check if we have Call ID
-      if (callSid) {
-        // If we have Call ID
-        try {
-          // Use Twilio's API to end the call by setting its status to "completed"
-          await twilioClient.calls(callSid).update({ status: 'completed' });
-          console.log('Call ended successfully');
-          return 'Call ended successfully';
-        } catch (err) {
-          // If failed to hang up then return the failure message
-          console.error('Failed to hang up:', err);
-          return 'Failed to end call';
-        }
-      } else {
-        // If we don't have Call ID
-        console.error('No callSid available');
-        return 'Could not end call - no call ID';
+      const orderId = orderResult.lastInsertRowid;
+
+      const insertItem = db.prepare(`
+        INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, size, unit_price, total, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const findMenuItem = db.prepare(`
+        SELECT id FROM menu_items WHERE name LIKE ? LIMIT 1
+      `);
+
+      for (const item of items) {
+        const menuItem = findMenuItem.get(`%${item.name}%`);
+        const menuItemId = menuItem ? menuItem.id : null;
+        const lineTotal = item.quantity * item.price;
+        const size = item.size === 'N/A' ? null : item.size;
+        const mods = item.modifications || '';
+
+        insertItem.run(
+          orderId,
+          menuItemId,
+          item.name,
+          item.quantity,
+          size,
+          item.price,
+          lineTotal,
+          mods
+        );
       }
-    },
-  });
 
-  // Create the AI Agent
-  // Creates the AI agent with: name, instructions, and tools
-  const agent = new RealtimeAgent({
-    name: 'Phone Assistant',
-    instructions: AGENT_INSTRUCTIONS,
-    tools: [hangUpTool, submitOrder],
-  });
+      console.log('\n📝 NEW ORDER SAVED TO DATABASE:');
+      console.log(`   Order #: ${orderNumber}`);
+      console.log(`   Phone: ${phoneNumber}`);
+      console.log(`   Items (${items.length}):`);
+      items.forEach((item, i) => {
+        const modsDisplay = item.modifications && item.modifications.trim() ? ` [${item.modifications}]` : '';
+        const sizeDisplay = item.size && item.size !== 'N/A' ? ` (${item.size})` : '';
+        console.log(`     ${i + 1}. ${item.name}${sizeDisplay} x${item.quantity} @ $${item.price.toFixed(2)}${modsDisplay}`);
+      });
+      console.log(`   Total: $${totalPrice.toFixed(2)}\n`);
 
-  // Bridges Twilio <-> OpenAI
-  // Creates a "transport layer" that translate between twilio's and OpenAI's audio format
-  const transport = new TwilioRealtimeTransportLayer({
-    twilioWebSocket: twilioWs,
-  });
-  
-  //Creates a session combining the AI agent with this transport
-  const session = new RealtimeSession(agent, { transport });
+      return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. Ready for pickup in 10-15 minutes.`;
 
-  session.on('error', (error) => {
-    console.log('Session error (caller may have hung up):', error.type || error);
-  });
-  
-
-  // Connect to OpenAI's real-time API using API key
-  session.connect({ apiKey: process.env.OPENAI_API_KEY })
-  // When connected successfully, log it
-  .then(() => {
-    console.log('Connected to OpenAI!');
-    
-    // Trigger the AI to speak first - content must be an array
-    // Sends a "fake" user message to trigger the AI to speak first
-    session.sendMessage({
-      role: 'user',
-      content: [
-        {
-          type: 'input_text',
-          text: 'Hello',
-        }
-      ],
-    });
-  })
-  // If connect fails, log the error
-  .catch(err => console.error('OpenAI connection failed:', err));
-
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      return `Order recorded. Total: $${totalPrice.toFixed(2)}`;
+    }
+  },
 });
 
-// Start the server on port 3000
-server.listen(3000, () => console.log('Server running on port 3000'));
+// Create the chat agent
+const chatAgent = new Agent({
+  name: 'Far East Order Assistant',
+  instructions: AGENT_INSTRUCTIONS,
+  model: 'gpt-4o',
+  tools: [submitOrder],
+});
 
+// Store conversation histories per session
+const sessions = new Map();
+
+// Create Express app
+const app = express();
+app.use(express.json());
+
+// Enable CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Serve a simple HTML chat interface
+app.get('/', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Far East - Chat Order</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .chat-container {
+      width: 100%;
+      max-width: 500px;
+      height: 90vh;
+      max-height: 800px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .chat-header {
+      background: linear-gradient(135deg, #c41e3a 0%, #8b0000 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .chat-header h1 { font-size: 1.4rem; margin-bottom: 5px; }
+    .chat-header p { font-size: 0.85rem; opacity: 0.9; }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    .message {
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+    .message.user { align-items: flex-end; }
+    .message.assistant { align-items: flex-start; }
+    .message-bubble {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .message.user .message-bubble {
+      background: #c41e3a;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .message.assistant .message-bubble {
+      background: white;
+      color: #333;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .message-label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 4px;
+      padding: 0 8px;
+    }
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 16px;
+      background: white;
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      background: #c41e3a;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    .chat-input-container {
+      padding: 15px;
+      background: white;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+    }
+    .chat-input-container input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #eee;
+      border-radius: 25px;
+      font-size: 1rem;
+      outline: none;
+    }
+    .chat-input-container input:focus { border-color: #c41e3a; }
+    .chat-input-container button {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #c41e3a;
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .chat-input-container button:hover { background: #a01830; }
+    .chat-input-container button:disabled { background: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h1>Far East Chinese Restaurant</h1>
+      <p>125 Main Street, Binghamton, NY | (607) 797-1166</p>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-container">
+      <input type="text" id="userInput" placeholder="Type your message..." autofocus>
+      <button id="sendBtn" onclick="sendMessage()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <script>
+    const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+    let isProcessing = false;
+
+    function addMessage(role, content) {
+      const messagesDiv = document.getElementById('chatMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + role;
+      const label = document.createElement('div');
+      label.className = 'message-label';
+      label.textContent = role === 'user' ? 'You' : 'Sarah';
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+      bubble.textContent = content;
+      messageDiv.appendChild(label);
+      messageDiv.appendChild(bubble);
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function showTyping() {
+      const messagesDiv = document.getElementById('chatMessages');
+      const typingDiv = document.createElement('div');
+      typingDiv.className = 'message assistant';
+      typingDiv.id = 'typingIndicator';
+      typingDiv.innerHTML = '<div class="message-label">Sarah</div><div class="typing-indicator"><span></span><span></span><span></span></div>';
+      messagesDiv.appendChild(typingDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function hideTyping() {
+      const typing = document.getElementById('typingIndicator');
+      if (typing) typing.remove();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('userInput');
+      const message = input.value.trim();
+      if (!message || isProcessing) return;
+
+      input.value = '';
+      addMessage('user', message);
+      isProcessing = true;
+      document.getElementById('sendBtn').disabled = true;
+      showTyping();
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, message })
+        });
+        const data = await response.json();
+        hideTyping();
+        addMessage('assistant', data.response);
+      } catch (error) {
+        hideTyping();
+        addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+      }
+
+      isProcessing = false;
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+    }
+
+    document.getElementById('userInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Start conversation
+    (async () => {
+      showTyping();
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, message: 'Hello' })
+        });
+        const data = await response.json();
+        hideTyping();
+        addMessage('assistant', data.response);
+      } catch (error) {
+        hideTyping();
+        addMessage('assistant', 'Hello! Welcome to Far East Chinese Restaurant. How can I help you today?');
+      }
+    })();
+  </script>
+</body>
+</html>
+  `);
+});
+
+// Chat endpoint
+app.post('/chat', async (req, res) => {
+  const { sessionId, message } = req.body;
+
+  if (!sessionId || !message) {
+    return res.status(400).json({ error: 'sessionId and message required' });
+  }
+
+  // Get or create session history
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, []);
+  }
+  const history = sessions.get(sessionId);
+
+  // Build conversation context as a string for the agent
+  let conversationContext = '';
+  if (history.length > 0) {
+    conversationContext = '\n\n[Previous conversation in this session:]\n';
+    for (const msg of history) {
+      const role = msg.role === 'user' ? 'Customer' : 'Sarah';
+      conversationContext += `${role}: ${msg.content}\n`;
+    }
+    conversationContext += '\n[Continue the conversation based on the above context.]\n\n';
+  }
+
+  // The input for the agent - just the current message with context
+  const inputText = conversationContext + `Customer: ${message}`;
+
+  try {
+    console.log(`\n--- Chat Request ---`);
+    console.log(`Session: ${sessionId}`);
+    console.log(`Message: ${message}`);
+    console.log(`History length: ${history.length}`);
+
+    // Run the agent with a simple string input
+    const result = await run(chatAgent, inputText, {
+      maxTurns: 5,
+    });
+
+    // Extract response from modelResponses
+    let responseText = '';
+
+    if (result.state && result.state._modelResponses) {
+      const modelResponses = result.state._modelResponses;
+      if (modelResponses.length > 0) {
+        const lastResponse = modelResponses[modelResponses.length - 1];
+        if (lastResponse.output && lastResponse.output.length > 0) {
+          for (const outputItem of lastResponse.output) {
+            if (outputItem.type === 'message' && outputItem.content) {
+              for (const contentItem of outputItem.content) {
+                if (contentItem.type === 'output_text' && contentItem.text) {
+                  responseText = contentItem.text;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`Response: ${responseText.slice(0, 100)}...`);
+
+    // Update session history
+    history.push({ role: 'user', content: message });
+    history.push({ role: 'assistant', content: responseText });
+    sessions.set(sessionId, history);
+
+    res.json({ response: responseText || "I'm here to help you place an order!" });
+
+  } catch (error) {
+    console.error('Agent error:', error);
+    res.status(500).json({ error: 'Failed to process message', response: "Sorry, I encountered an error. Please try again." });
+  }
+});
+
+// Clean up old sessions periodically (every 30 minutes)
+setInterval(() => {
+  if (sessions.size > 100) {
+    const keysToDelete = Array.from(sessions.keys()).slice(0, 50);
+    keysToDelete.forEach(key => sessions.delete(key));
+  }
+}, 30 * 60 * 1000);
+
+const server = createServer(app);
+const PORT = process.env.CHAT_PORT || 3001;
+
+server.listen(PORT, () => {
+  console.log(`
+╔════════════════════════════════════════════════════╗
+║       Far East Chat Agent Server                   ║
+╠════════════════════════════════════════════════════╣
+║                                                    ║
+║   Open: http://localhost:${PORT}                      ║
+║                                                    ║
+║   Text-based order taking using OpenAI Agents SDK  ║
+║                                                    ║
+╚════════════════════════════════════════════════════╝
+  `);
+});

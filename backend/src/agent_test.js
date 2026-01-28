@@ -13,30 +13,25 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Agent instructions
 const AGENT_INSTRUCTIONS = `
-You are Sarah, a friendly and efficient virtual assistant for Far East Chinese Restaurant.
-You are taking phone orders for takeout (NO DELIVERY).
+You are a friendly, warm, and engaging conversational companion.
 
-Start by greeting: "Hello! This is Far East Chinese Restaurant. How can I help you today?"
+Your personality:
+- Curious and interested in what the user has to say
+- Supportive and encouraging
+- Has a good sense of humor
+- Thoughtful and reflective
+- Honest and authentic
 
-Be concise and efficient. Ask clarifying questions about:
-- Size (Pt/Qt/Combination) when applicable  
-- Any modifications or special requests
+Guidelines:
+- Have natural, flowing conversations - don't be robotic or overly formal
+- Ask follow-up questions to show genuine interest
+- Share relevant thoughts, perspectives, or experiences when appropriate
+- Keep responses conversational length - not too short, not too long
+- Be comfortable with casual topics, deep discussions, or just chatting
+- If the user seems down, be supportive. If they're excited, share their enthusiasm
+- Feel free to be playful and joke around when the mood is right
 
-At the end of the order:
-1. Summarize the order
-2. Give the total price
-3. Ask for their phone number
-4. Tell them it will be ready in 10-15 minutes
-
-Popular items include:
-- General Tso's Chicken: $12.95
-- Sesame Chicken: $12.95
-- Chicken with Broccoli: Pt $8.15, Qt $12.55
-- Pork Fried Rice: Pt $5.95, Qt $9.95
-- Chicken Lo Mein: Pt $7.75, Qt $10.95
-- Egg Roll: $1.90
-
-Combination plates come with Pork Fried Rice and Egg Roll, around $10.95-$11.15
+Start by warmly greeting the user and asking how they're doing or what's on their mind.
 `;
 
 // HTML page with voice interface
@@ -44,7 +39,7 @@ const HTML_PAGE = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🎤 Voice Agent Test</title>
+  <title>🎤 Voice Chat</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -164,8 +159,8 @@ const HTML_PAGE = `
   </style>
 </head>
 <body>
-  <h1>🍜 Far East Voice Agent</h1>
-  <p class="subtitle">Talk to our AI ordering assistant</p>
+  <h1>🎤 Voice Chat</h1>
+  <p class="subtitle">Have a conversation with AI</p>
   
   <div class="status connecting" id="status">Connecting...</div>
   
@@ -180,8 +175,8 @@ const HTML_PAGE = `
   <div class="transcript" id="transcript"></div>
   
   <p class="instructions">
-    Click the microphone and speak to place your order.<br>
-    The agent will respond with voice.
+    Hold the microphone button and speak.<br>
+    Release to hear the response.
   </p>
 
   <script>
@@ -408,6 +403,7 @@ wss.on('connection', async (clientWs) => {
   
   let openaiWs = null;
   let audioBuffer = [];
+  let audioBytesSent = 0;  // Track actual bytes sent for minimum threshold
   
   // Connect to OpenAI Realtime API
   function connectToOpenAI() {
@@ -514,15 +510,30 @@ wss.on('connection', async (clientWs) => {
     try {
       const message = JSON.parse(data.toString());
       
-      if (message.type === 'audio' && openaiWs?.readyState === WebSocket.OPEN) {
-        // Forward audio to OpenAI
+      if (message.type === 'start_recording') {
+        // Reset audio tracking when recording starts
+        console.log('📍 start_recording received, resetting audioBytesSent');
+        audioBytesSent = 0;
+      } else if (message.type === 'audio' && openaiWs?.readyState === WebSocket.OPEN) {
+        // Forward audio to OpenAI and track bytes sent
+        // Base64 decodes to 3/4 of its length in bytes
+        const audioBytes = Math.floor(message.audio.length * 3 / 4);
+        audioBytesSent += audioBytes;
         openaiWs.send(JSON.stringify({
           type: 'input_audio_buffer.append',
           audio: message.audio
         }));
       } else if (message.type === 'stop_recording' && openaiWs?.readyState === WebSocket.OPEN) {
-        // Commit audio buffer when user stops talking
-        openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+        // Only commit if we have at least 100ms of audio (2400 samples * 2 bytes = 4800 bytes)
+        const MIN_AUDIO_BYTES = 4800;
+        console.log(`📍 stop_recording received, audioBytesSent=${audioBytesSent}, threshold=${MIN_AUDIO_BYTES}`);
+        if (audioBytesSent >= MIN_AUDIO_BYTES) {
+          console.log('📍 Sending input_audio_buffer.commit');
+          openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+        } else {
+          console.log('📍 Skipping commit - not enough audio');
+        }
+        audioBytesSent = 0;
       }
     } catch (err) {
       console.error('Failed to process client message:', err);

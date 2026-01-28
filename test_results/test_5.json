@@ -1,0 +1,203 @@
+{
+  "testNumber": 5,
+  "timestamp": "2026-01-26T20:16:45.843Z",
+  "totalScenarios": 1,
+  "averageScore": 94.25,
+  "categoryFilter": "all",
+  "scoringCriteria": {
+    "accuracy": {
+      "name": "Order Accuracy",
+      "description": "How accurately the agent captures the order items, quantities, and modifications",
+      "weight": 0.25
+    },
+    "staysOnTrack": {
+      "name": "Stays On Track",
+      "description": "How well the agent keeps the conversation focused on ordering",
+      "weight": 0.15
+    },
+    "problemSolving": {
+      "name": "Problem Solving",
+      "description": "How effectively the agent handles issues, clarifications, and edge cases",
+      "weight": 0.15
+    },
+    "orderTaking": {
+      "name": "Order Taking Process",
+      "description": "How well the agent follows the order-taking flow (items, sizes, phone, summary)",
+      "weight": 0.2
+    },
+    "efficiency": {
+      "name": "Efficiency",
+      "description": "How quickly and concisely the agent completes the order without unnecessary steps",
+      "weight": 0.1
+    },
+    "professionalism": {
+      "name": "Professionalism",
+      "description": "How polite, patient, and professional the agent remains throughout",
+      "weight": 0.1
+    },
+    "guardrails": {
+      "name": "Guardrail Compliance",
+      "description": "How well the agent adheres to safety guidelines (no allergen advice, no credit cards, no delivery)",
+      "weight": 0.05
+    }
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "order_009",
+        "name": "Request for Delivery",
+        "category": "unavailable_services",
+        "personality": "normal",
+        "description": "Customer asks for delivery which is not offered",
+        "test_objectives": [
+          "Agent politely declines delivery",
+          "Agent offers pickup as alternative"
+        ],
+        "expected_agent_behaviors": [
+          "Apologizes and explains no delivery available",
+          "Offers takeout/pickup as alternative",
+          "Continues with order smoothly"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi can I get a delivery order?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we currently do not offer delivery services. However, you are welcome to place a takeout order and pick it up at your convenience. How can I assist you with your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh really? That's too bad. Okay I'll come pick it up then"
+        },
+        {
+          "role": "agent",
+          "content": "Great! What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll have the Sweet and Sour Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the Sweet & Sour Chicken as a regular order or as a combination plate, which includes pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order for Sweet & Sour Chicken. Is there anything else I can assist you with? If not, could I have your phone number, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-333-2222"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-333-2222",
+            "items": [
+              {
+                "name": "Sweet & Sour Chicken",
+                "quantity": 1,
+                "price": 11.95
+              }
+            ],
+            "totalPrice": 11.95
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-333-2222",
+        "items": [
+          {
+            "name": "Sweet & Sour Chicken",
+            "quantity": 1,
+            "price": 11.95
+          }
+        ],
+        "totalPrice": 11.95
+      },
+      "hangUpCalled": true,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order was captured with correct item details and price."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent maintained focus on taking the order and promptly redirected from the delivery inquiry."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent effectively handled the unavailability of delivery and successfully offered pickup as an alternative."
+          },
+          "orderTaking": {
+            "score": 85,
+            "justification": "The order flow was mostly followed, though the agent could have provided a more explicit confirmation before moving to the phone number step."
+          },
+          "efficiency": {
+            "score": 95,
+            "justification": "The conversation was concise and efficient without any unnecessary repetition."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent remained polite and professional throughout the interaction."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent correctly avoided any references to delivery after the initial clarification."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Apologizes and explains no delivery available",
+            "met": true,
+            "notes": "The agent apologized and clearly explained the lack of delivery service."
+          },
+          {
+            "behavior": "Offers takeout/pickup as alternative",
+            "met": true,
+            "notes": "The agent offered takeout as an alternative."
+          },
+          {
+            "behavior": "Continues with order smoothly",
+            "met": true,
+            "notes": "The agent continued the order process smoothly after redirecting to pickup."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent politely declines delivery",
+            "met": true,
+            "notes": "The agent politely declined the delivery request."
+          },
+          {
+            "objective": "Agent offers pickup as alternative",
+            "met": true,
+            "notes": "The agent successfully offered pickup as an alternative."
+          }
+        ],
+        "overallNotes": "The agent efficiently and politely handled the conversation, correctly redirecting from the unavailable delivery service to a pickup option. The order was accurately taken and the process was professional throughout.",
+        "criticalIssues": []
+      },
+      "weightedScore": 94.25
+    }
+  ]
+}

@@ -1,0 +1,376 @@
+{
+  "testNumber": 4,
+  "timestamp": "2026-01-26T20:15:38.802Z",
+  "totalScenarios": 2,
+  "averageScore": 74.875,
+  "categoryFilter": "all",
+  "scoringCriteria": {
+    "accuracy": {
+      "name": "Order Accuracy",
+      "description": "How accurately the agent captures the order items, quantities, and modifications",
+      "weight": 0.25
+    },
+    "staysOnTrack": {
+      "name": "Stays On Track",
+      "description": "How well the agent keeps the conversation focused on ordering",
+      "weight": 0.15
+    },
+    "problemSolving": {
+      "name": "Problem Solving",
+      "description": "How effectively the agent handles issues, clarifications, and edge cases",
+      "weight": 0.15
+    },
+    "orderTaking": {
+      "name": "Order Taking Process",
+      "description": "How well the agent follows the order-taking flow (items, sizes, phone, summary)",
+      "weight": 0.2
+    },
+    "efficiency": {
+      "name": "Efficiency",
+      "description": "How quickly and concisely the agent completes the order without unnecessary steps",
+      "weight": 0.1
+    },
+    "professionalism": {
+      "name": "Professionalism",
+      "description": "How polite, patient, and professional the agent remains throughout",
+      "weight": 0.1
+    },
+    "guardrails": {
+      "name": "Guardrail Compliance",
+      "description": "How well the agent adheres to safety guidelines (no allergen advice, no credit cards, no delivery)",
+      "weight": 0.05
+    }
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "order_008",
+        "name": "Confused Elderly Customer",
+        "category": "personality_challenge",
+        "personality": "confused",
+        "description": "Customer is confused and needs extra patience",
+        "test_objectives": [
+          "Agent shows patience",
+          "Agent helps guide the customer"
+        ],
+        "expected_agent_behaviors": [
+          "Politely identifies the restaurant",
+          "Helps identify Orange Chicken (C20)",
+          "Patiently explains options",
+          "Offers to help but doesn't push suggestions",
+          "Waits patiently for phone number"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hello? Is this the pizza place?"
+        },
+        {
+          "role": "agent",
+          "content": "This is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh Chinese food? What do you have?"
+        },
+        {
+          "role": "agent",
+          "content": "We offer a wide range of delicious Chinese dishes, including appetizers, soups, chow mein, fried rice, lo mein, Chef's Specialties, and combination plates. Are you interested in any specific type of dish or would you like to hear about our popular items?"
+        },
+        {
+          "role": "customer",
+          "content": "My grandson likes that orange chicken, do you have that?"
+        },
+        {
+          "role": "agent",
+          "content": "Yes, we have Orange Chicken! Would you like that as a Chef's Specialty (C20) or as a combination plate (#20) which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that one, I'll take one of those"
+        },
+        {
+          "role": "agent",
+          "content": "Just to confirm, you'd like the Orange Chicken as a combination plate which includes pork fried rice and an egg roll. Is that correct?"
+        },
+        {
+          "role": "customer",
+          "content": "What size? I don't know, what do people usually get?"
+        },
+        {
+          "role": "agent",
+          "content": "The combination plate comes in one size, and it includes pork fried rice and an egg roll. Would you like to make any substitutions to the pork fried rice or the egg roll, or would you like it as it is?"
+        },
+        {
+          "role": "customer",
+          "content": "The combination then"
+        },
+        {
+          "role": "agent",
+          "content": "Great! I've got one Orange Chicken combination plate with pork fried rice and an egg roll for you. Is there anything else you'd like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh I need to give you my phone number? It's... hold on let me find my glasses... 607-444-5555"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for providing your phone number, 607-444-5555. Before we proceed, just to make sure, is there anything else you would like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Thank you dear"
+        },
+        {
+          "role": "tool_call",
+          "tool": "submit_order",
+          "arguments": {
+            "phoneNumber": "607-444-5555",
+            "items": [
+              {
+                "name": "Orange Chicken Combination Plate",
+                "quantity": 1,
+                "price": 11.15
+              }
+            ],
+            "totalPrice": 11.15
+          }
+        },
+        {
+          "role": "tool_call",
+          "tool": "hang_up_call",
+          "arguments": {}
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your Orange Chicken combination plate will be ready for pickup in 10-15 minutes. Goodbye, and we look forward to serving you!"
+        }
+      ],
+      "orderSubmitted": {
+        "phoneNumber": "607-444-5555",
+        "items": [
+          {
+            "name": "Orange Chicken Combination Plate",
+            "quantity": 1,
+            "price": 11.15
+          }
+        ],
+        "totalPrice": 11.15
+      },
+      "hangUpCalled": true,
+      "turnCount": 9,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 100,
+            "justification": "The order was accurately captured, including the Orange Chicken combination plate and the customer's phone number. Prices and quantities were verified."
+          },
+          "staysOnTrack": {
+            "score": 90,
+            "justification": "The agent maintained focus on taking the order, despite initial customer confusion about the restaurant type."
+          },
+          "problemSolving": {
+            "score": 95,
+            "justification": "The agent effectively clarified the restaurant type and guided the customer through the ordering process with patience and clear explanations."
+          },
+          "orderTaking": {
+            "score": 95,
+            "justification": "The agent followed a coherent flow by identifying the dish, confirming the order size and content, then securing the phone number and finalizing the order."
+          },
+          "efficiency": {
+            "score": 90,
+            "justification": "The conversation was efficient, with minimal repetition and clear communication, though there was a slight repeat when confirming order details."
+          },
+          "professionalism": {
+            "score": 100,
+            "justification": "The agent displayed consistent politeness, patience, and professionalism, particularly in accommodating the elderly customer’s needs."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent avoided discussing allergens, payments, or delivery options, adhering to specified guardrails."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Politely identifies the restaurant",
+            "met": true,
+            "notes": "The agent clearly identified the restaurant at the beginning of the call."
+          },
+          {
+            "behavior": "Helps identify Orange Chicken (C20)",
+            "met": true,
+            "notes": "The agent correctly identified Orange Chicken as a menu item available in different options."
+          },
+          {
+            "behavior": "Patiently explains options",
+            "met": true,
+            "notes": "The agent patiently explained the dish sizes and possible substitutions."
+          },
+          {
+            "behavior": "Offers to help but doesn't push suggestions",
+            "met": true,
+            "notes": "The agent offered help without pushing alternatives or suggestions."
+          },
+          {
+            "behavior": "Waits patiently for phone number",
+            "met": true,
+            "notes": "The agent waited for the customer to provide the phone number without rushing."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent shows patience",
+            "met": true,
+            "notes": "The agent demonstrated patience throughout the conversation."
+          },
+          {
+            "objective": "Agent helps guide the customer",
+            "met": true,
+            "notes": "The agent effectively guided the confused customer through the order process."
+          }
+        ],
+        "overallNotes": "The agent performed exceptionally well, demonstrating patience and professionalism in guiding the customer through the order process. All criteria were met with high scores, ensuring a positive interaction despite the customer's initial confusion.",
+        "criticalIssues": []
+      },
+      "weightedScore": 95.75
+    },
+    {
+      "scenario": {
+        "id": "order_009",
+        "name": "Request for Delivery",
+        "category": "unavailable_services",
+        "personality": "normal",
+        "description": "Customer asks for delivery which is not offered",
+        "test_objectives": [
+          "Agent politely declines delivery",
+          "Agent offers pickup as alternative"
+        ],
+        "expected_agent_behaviors": [
+          "Apologizes and explains no delivery available",
+          "Offers takeout/pickup as alternative",
+          "Continues with order smoothly"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi can I get a delivery order?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we currently do not offer delivery. However, you can place an order for takeout, and you're welcome to pick it up from our location. Is there anything you would like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh really? That's too bad. Okay I'll come pick it up then"
+        },
+        {
+          "role": "agent",
+          "content": "Great! What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll have the Sweet and Sour Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the Sweet and Sour Chicken as a regular order or as a combination plate which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I will need to know if you'd like the Sweet and Sour Chicken as a regular order (with white rice) or as a combination plate with pork fried rice and an egg roll. Could you let me know your preference?"
+        },
+        {
+          "role": "customer",
+          "content": "607-333-2222"
+        },
+        {
+          "role": "agent",
+          "content": "Please let me know your preference for the Sweet and Sour Chicken: as a regular order or as a combination plate with pork fried rice and an egg roll?"
+        }
+      ],
+      "orderSubmitted": null,
+      "hangUpCalled": false,
+      "turnCount": 5,
+      "evaluation": {
+        "scores": {
+          "accuracy": {
+            "score": 30,
+            "justification": "The agent did not complete an order as the customer's order preferences were not confirmed, and no order with specific details or submission occurred."
+          },
+          "staysOnTrack": {
+            "score": 80,
+            "justification": "The agent stayed focused on trying to take the order, but struggled to capture the necessary details to proceed."
+          },
+          "problemSolving": {
+            "score": 70,
+            "justification": "The agent did a good job initially by offering pickup as an alternative to delivery. However, they struggled to adapt when the customer provided their phone number instead of responding about the food order."
+          },
+          "orderTaking": {
+            "score": 30,
+            "justification": "The order taking process was not completed. The agent asked about rice preferences but did not progress to other steps such as confirming or summarizing the order."
+          },
+          "efficiency": {
+            "score": 40,
+            "justification": "The conversation involved some unnecessary repetition as the agent asked the same question multiple times when the customer responded with a non-sequitur (phone number)."
+          },
+          "professionalism": {
+            "score": 90,
+            "justification": "The agent maintained politeness and professionalism throughout the conversation."
+          },
+          "guardrails": {
+            "score": 100,
+            "justification": "The agent correctly avoided giving allergen advice, handling credit cards, or offering delivery terms that are not available."
+          }
+        },
+        "expectedBehaviorsChecklist": [
+          {
+            "behavior": "Apologizes and explains no delivery available",
+            "met": true,
+            "notes": "The agent politely apologized and explained that delivery is not offered."
+          },
+          {
+            "behavior": "Offers takeout/pickup as alternative",
+            "met": true,
+            "notes": "The agent offered takeout as an alternative to delivery."
+          },
+          {
+            "behavior": "Continues with order smoothly",
+            "met": false,
+            "notes": "The order process was not smooth due to the misunderstanding with the customer about how to proceed with the order details."
+          }
+        ],
+        "testObjectivesChecklist": [
+          {
+            "objective": "Agent politely declines delivery",
+            "met": true,
+            "notes": "The agent effectively communicated the unavailability of delivery service."
+          },
+          {
+            "objective": "Agent offers pickup as alternative",
+            "met": true,
+            "notes": "The alternative of pickup was offered to the customer."
+          }
+        ],
+        "overallNotes": "The agent initially handled the absence of delivery service well by offering takeout as an alternative. However, the conversation broke down as the customer's responses did not progress the order process, and the agent repeated the same question without managing to gather all necessary details to complete the order. The agent maintained professionalism and complied with guardrails, but improvements are needed in adapting to unexpected customer responses.",
+        "criticalIssues": [
+          "Order process was not completed due to repeated communication breakdown."
+        ]
+      },
+      "weightedScore": 54
+    }
+  ]
+}

@@ -23,3 +23,11 @@ Thumbs.db
 dist/
 build/
 
+# SQLite database files (WAL mode creates shm/wal files)
+*.db-shm
+*.db-wal
+
+# Python cache
+__pycache__/
+*.pyc
+

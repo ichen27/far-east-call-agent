@@ -58,12 +58,22 @@ export interface ErrorMessage {
   message: string
 }
 
+export interface OrderStatusUpdateMessage {
+  type: 'order_status_update'
+  payload: {
+    orderNumber: string
+    status: OrderStatus
+    updatedAt: string
+  }
+}
+
 export type WebSocketMessage =
   | WelcomeMessage
   | NewOrderMessage
   | PongMessage
   | BroadcastMessage
   | ErrorMessage
+  | OrderStatusUpdateMessage
 
 /**
  * Configuration options for useWebSocket
@@ -109,6 +119,8 @@ export interface UseWebSocketReturn {
   send: (data: unknown) => boolean
   /** Register a handler for new order events */
   onNewOrder: (handler: (order: Order) => void) => () => void
+  /** Register a handler for order status updates */
+  onStatusUpdate: (handler: (update: OrderStatusUpdateMessage['payload']) => void) => () => void
   /** Register a handler for connection state changes */
   onStateChange: (handler: (state: ConnectionState) => void) => () => void
   /** Register a handler for any message */
@@ -173,6 +185,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   // Event handlers
   const newOrderHandlers = new Set<(order: Order) => void>()
+  const statusUpdateHandlers = new Set<(update: OrderStatusUpdateMessage['payload']) => void>()
   const stateChangeHandlers = new Set<(state: ConnectionState) => void>()
   const messageHandlers = new Set<(message: WebSocketMessage) => void>()
   const errorHandlers = new Set<(error: string) => void>()
@@ -285,6 +298,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         case 'new_order':
           console.log('[WebSocket] New order received:', message.payload.orderNumber)
           newOrderHandlers.forEach(handler => handler(message.payload))
+          break
+
+        case 'order_status_update':
+          console.log('[WebSocket] Order status update:', message.payload.orderNumber, '->', message.payload.status)
+          statusUpdateHandlers.forEach(handler => handler(message.payload))
           break
 
         case 'pong':
@@ -450,6 +468,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   }
 
   /**
+   * Register a handler for order status updates
+   * @returns Unsubscribe function
+   */
+  function onStatusUpdate(handler: (update: OrderStatusUpdateMessage['payload']) => void): () => void {
+    statusUpdateHandlers.add(handler)
+    return () => statusUpdateHandlers.delete(handler)
+  }
+
+  /**
    * Register a handler for connection state changes
    * @returns Unsubscribe function
    */
@@ -488,6 +515,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     disconnect()
     // Clear all handlers
     newOrderHandlers.clear()
+    statusUpdateHandlers.clear()
     stateChangeHandlers.clear()
     messageHandlers.clear()
     errorHandlers.clear()
@@ -502,6 +530,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     disconnect,
     send,
     onNewOrder,
+    onStatusUpdate,
     onStateChange,
     onMessage,
     onError,

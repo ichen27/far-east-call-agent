@@ -93,10 +93,10 @@ const wss = new WebSocketServer({ server, path: '/media-stream' });
  * Creates the submit_order tool for a specific call session.
  * Saves the order to the database and broadcasts to connected frontends.
  *
- * @param {string|null} callSid - The Twilio call SID for logging
+ * @param {Function} getCallSid - Function that returns the current Twilio call SID for logging
  * @returns {Object} The tool definition
  */
-function createSubmitOrderTool(callSid) {
+function createSubmitOrderTool(getCallSid) {
   return tool({
     name: 'submit_order',
     description:
@@ -129,7 +129,7 @@ function createSubmitOrderTool(callSid) {
           })),
         });
 
-        logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, callSid);
+        logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, getCallSid());
 
         await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
 
@@ -146,10 +146,10 @@ function createSubmitOrderTool(callSid) {
  * Creates the hang_up_call tool for a specific call session.
  * Ends the Twilio call after a brief delay to allow final message playback.
  *
- * @param {string|null} callSid - The Twilio call SID to hang up
+ * @param {Function} getCallSid - Function that returns the current Twilio call SID
  * @returns {Object} The tool definition
  */
-function createHangUpTool(callSid) {
+function createHangUpTool(getCallSid) {
   return tool({
     name: 'hang_up_call',
     description:
@@ -165,6 +165,7 @@ function createHangUpTool(callSid) {
      * @returns {Promise<string>} Success or failure message
      */
     execute: async () => {
+      const callSid = getCallSid();
       console.log('[Voice] Agent requested hang up. CallSid:', callSid);
       console.log(`[Voice] Waiting ${config.voiceAgent.hangUpDelay}ms before hanging up...`);
 
@@ -234,9 +235,13 @@ wss.on('connection', (twilioWs) => {
     }
   });
 
-  // Create tools with access to callSid
-  const submitOrder = createSubmitOrderTool(callSid);
-  const hangUpTool = createHangUpTool(callSid);
+  // Create getter function to access current callSid value at execution time
+  // (avoids closure capturing stale null value)
+  const getCallSid = () => callSid;
+
+  // Create tools with getter function for lazy callSid access
+  const submitOrder = createSubmitOrderTool(getCallSid);
+  const hangUpTool = createHangUpTool(getCallSid);
 
   // Create the AI agent
   const agent = new RealtimeAgent({

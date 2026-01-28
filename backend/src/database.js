@@ -15,14 +15,10 @@
  */
 
 import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import config from './config.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Single shared database connection
-const db = new Database(join(__dirname, 'fareast.db'));
+// Single shared database connection using centralized config
+const db = new Database(config.database.path);
 
 // ==================== CRITICAL PRAGMAS FOR CONCURRENCY ====================
 
@@ -35,10 +31,9 @@ db.pragma('journal_mode = WAL');
 // SQLite has foreign keys disabled by default for backwards compatibility
 db.pragma('foreign_keys = ON');
 
-// Set busy timeout to 5 seconds for concurrent access
-// When the database is locked by another writer, wait up to 5000ms
-// before returning SQLITE_BUSY error
-db.pragma('busy_timeout = 5000');
+// Set busy timeout for concurrent access (configurable via DB_BUSY_TIMEOUT)
+// When the database is locked by another writer, wait before returning SQLITE_BUSY
+db.pragma(`busy_timeout = ${config.database.busyTimeout}`);
 
 // ==================== PERFORMANCE PRAGMAS ====================
 

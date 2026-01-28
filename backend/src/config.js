@@ -9,9 +9,15 @@
  */
 
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Load environment variables from .env file
 dotenv.config();
+
+// Get directory path for file path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Validates that required environment variables are present.
@@ -112,8 +118,8 @@ export const voiceAgent = {
  * @constant {Object}
  */
 export const database = {
-  /** SQLite database file path */
-  path: process.env.DB_PATH || 'fareast.db',
+  /** SQLite database file path (absolute path resolved from config directory) */
+  path: process.env.DB_PATH || join(__dirname, 'fareast.db'),
 
   /** Busy timeout for concurrent access (milliseconds) */
   busyTimeout: parseInt(process.env.DB_BUSY_TIMEOUT, 10) || 5000,

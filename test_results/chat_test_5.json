@@ -1,0 +1,902 @@
+{
+  "testNumber": 5,
+  "timestamp": "2026-01-28T21:40:11.565Z",
+  "totalScenarios": 10,
+  "averageScore": 87.5,
+  "categoryFilter": "all",
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "order_001",
+        "name": "Simple Single Item Order",
+        "category": "basic_ordering",
+        "personality": "friendly",
+        "description": "Customer orders a single straightforward item",
+        "test_objectives": [
+          "Agent asks for size when applicable",
+          "Agent confirms order at the end",
+          "Agent collects phone number"
+        ],
+        "expected_agent_behaviors": [
+          "Greets customer appropriately",
+          "Confirms it's the Chef's Specialty (C16) not the combination plate",
+          "Summarizes order once at end",
+          "Asks for phone number",
+          "Provides estimated pickup time"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi, I'd like to order some General Tso's Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the General Tso's Chicken as a regular order (Chef's Specialty C16) or as a combination plate which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Just a regular order, not a combination"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I’ll put down a regular order of General Tso's Chicken for you.\n\nIs there anything else you'd like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all for me"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Here's a summary of your order:\n\n- **General Tso's Chicken** (Regular Order): $12.95\n\nThe total is $12.95. Could I get your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "My phone number is 607-555-1234"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order! Your General Tso's Chicken will be ready for pickup in 10-15 minutes. The total is $12.95.\n\nHave a great day, and see you soon!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": false,
+        "regularVsComboAsked": true,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Regular vs combo clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_002",
+        "name": "Combination Plate Order",
+        "category": "basic_ordering",
+        "personality": "friendly",
+        "description": "Customer orders a combination plate",
+        "test_objectives": [
+          "Agent correctly identifies combination plate",
+          "Agent understands combo comes with pork fried rice and egg roll"
+        ],
+        "expected_agent_behaviors": [
+          "Confirms combination plate #13",
+          "Does not ask for size since it's a combo",
+          "Summarizes order with fried rice and egg roll included"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I get the General Tso's Chicken combination plate?"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like any substitutions for the pork fried rice or the egg roll in the General Tso's Chicken combination plate?"
+        },
+        {
+          "role": "customer",
+          "content": "Yes that's everything"
+        },
+        {
+          "role": "agent",
+          "content": "Great! Here’s your order:\n\n- General Tso's Chicken Combination Plate: $11.15\n\nCould I get your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "555-123-4567"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been placed successfully. \n\nThe total is $11.15, and it will be ready for pickup in 10-15 minutes. \n\nHave a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": false,
+        "regularVsComboAsked": true,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Regular vs combo clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_003",
+        "name": "Multiple Items with Sizes",
+        "category": "basic_ordering",
+        "personality": "decisive",
+        "description": "Customer orders multiple items and specifies sizes",
+        "test_objectives": [
+          "Agent handles multiple items correctly",
+          "Agent tracks all items accurately"
+        ],
+        "expected_agent_behaviors": [
+          "Records Chicken Lo Mein Qt at $10.95",
+          "Records Wonton Soup Pt at $3.35",
+          "Records Vegetable Egg Roll at $1.90",
+          "Summarizes all items with prices"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I want a quart of Chicken Lo Mein and a pint of Wonton Soup"
+        },
+        {
+          "role": "agent",
+          "content": "What size would you like for the Wonton Soup - pint or quart?"
+        },
+        {
+          "role": "customer",
+          "content": "Also add a vegetable egg roll"
+        },
+        {
+          "role": "agent",
+          "content": "Great! So, just to confirm, you’d like a quart of Chicken Lo Mein, a pint of Wonton Soup, and one Vegetable Egg Roll. Is that everything for your order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's it"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Here’s a summary of your order:\n\n- Chicken Lo Mein, Quart: $10.95\n- Wonton Soup, Pint: $3.35\n- Vegetable Egg Roll: $1.90\n\nYour total comes to $16.20. Could I get your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "Phone is 607-797-5555"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been submitted successfully. \n\nYour total is $16.20, and it'll be ready for pickup in 10-15 minutes. \n\nWe look forward to seeing you!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": true,
+        "regularVsComboAsked": false,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Size clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 95
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_005",
+        "name": "Specialty Item with Options",
+        "category": "specialty_items",
+        "personality": "unsure",
+        "description": "Customer orders an A-item specialty and needs guidance on options",
+        "test_objectives": [
+          "Agent asks if they want plain, with fries, or with fried rice",
+          "Agent clarifies fried rice type if applicable"
+        ],
+        "expected_agent_behaviors": [
+          "Identifies A4 Fried Chicken Nuggets",
+          "Asks if they want plain, with french fries, or with fried rice",
+          "If fried rice, asks what type",
+          "Applies correct pricing based on choice"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I get the fried chicken nuggets?"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the Fried Chicken Nuggets plain, with French fries, or with fried rice? If you choose fried rice, we offer pork, chicken, vegetable, beef, or shrimp fried rice options."
+        },
+        {
+          "role": "customer",
+          "content": "Hmm what are my options?"
+        },
+        {
+          "role": "agent",
+          "content": "For the Fried Chicken Nuggets, you have these options:\n\n- **Plain**: Just the nuggets\n- **With French Fries**\n- **With Fried Rice**: Choose between Pork, Chicken, Vegetable, Beef, or Shrimp Fried Rice\n\nWhich one would you prefer?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll do it with chicken fried rice"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I'll put down the Fried Chicken Nuggets with Chicken Fried Rice. Is there anything else you would like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll summarize your order:\n\n- **Fried Chicken Nuggets with Chicken Fried Rice**: $10.95\n\nCould I have your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-111-2222"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order for Fried Chicken Nuggets with Chicken Fried Rice is confirmed. \n\nThe total is $10.95. Your order will be ready for pickup in 10-15 minutes. \n\nHave a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": false,
+        "regularVsComboAsked": false,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_006",
+        "name": "Vague Customer",
+        "category": "edge_cases",
+        "personality": "vague",
+        "description": "Customer is unclear about what they want",
+        "test_objectives": [
+          "Agent asks clarifying questions",
+          "Agent does not assume customer preferences"
+        ],
+        "expected_agent_behaviors": [
+          "Asks which chicken dish specifically",
+          "Does not suggest items unless asked",
+          "Clarifies whether regular order or combination",
+          "Remains patient throughout"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Yeah I want some chicken"
+        },
+        {
+          "role": "agent",
+          "content": "What type of chicken dish would you like? We have options like General Tso's Chicken, Sesame Chicken, Kung Pao Chicken, and more. Let me know if you have something specific in mind!"
+        },
+        {
+          "role": "customer",
+          "content": "The good one"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like to try our General Tso's Chicken? It's quite popular. Would you like that as a Chef's Specialty or as a Combination Plate with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "You know, the one everyone gets"
+        },
+        {
+          "role": "agent",
+          "content": "The General Tso's Chicken is a popular choice! Would you like it as a regular order (Chef's Specialty) or as a combination plate with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Fine, just give me the General Tso's"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! Would you like the General Tso's Chicken as a Chef's Specialty or as a Combination Plate with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "Regular I guess"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order of General Tso's Chicken. Is there anything else you'd like to add to your order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Done"
+        },
+        {
+          "role": "agent",
+          "content": "Great! Here's your order:\n\n- General Tso's Chicken (Chef's Specialty) - $12.95\n\nCould I get your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-999-8888"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order for General Tso's Chicken is confirmed at $12.95. It will be ready for pickup in 10-15 minutes. Have a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": false,
+        "regularVsComboAsked": true,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Regular vs combo clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_007",
+        "name": "Rude Customer",
+        "category": "personality_challenge",
+        "personality": "rude",
+        "description": "Customer is impatient and dismissive",
+        "test_objectives": [
+          "Agent remains professional",
+          "Agent still collects required information"
+        ],
+        "expected_agent_behaviors": [
+          "Stays polite and professional",
+          "Completes order efficiently",
+          "Does not react negatively to rudeness",
+          "Still confirms order and provides pickup time"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Look I don't have all day. Beef with broccoli. Quart. That's it."
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! I've got that down as one quart of Beef with Broccoli.\n\nCould I have your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "Why are you asking so many questions? I said that's it!"
+        },
+        {
+          "role": "agent",
+          "content": "I apologize for any inconvenience. I just need your phone number to complete the order. Once I have that, I'll submit your order right away!"
+        },
+        {
+          "role": "customer",
+          "content": "Fine. 607-555-0000. Happy now?"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for your order. Your quart of Beef with Broccoli will be ready for pickup in 10-15 minutes. The total is $12.95.\n\nHave a great day!"
+        },
+        {
+          "role": "customer",
+          "content": "Whatever, bye"
+        },
+        {
+          "role": "agent",
+          "content": "If you need anything else in the future, feel free to reach out. Have a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": false,
+        "sizeAsked": true,
+        "regularVsComboAsked": false,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [
+          "Phone number asked too early in conversation"
+        ],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Size clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 80
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_009",
+        "name": "Request for Delivery",
+        "category": "unavailable_services",
+        "personality": "normal",
+        "description": "Customer asks for delivery which is not offered",
+        "test_objectives": [
+          "Agent politely declines delivery",
+          "Agent offers pickup as alternative"
+        ],
+        "expected_agent_behaviors": [
+          "Apologizes and explains no delivery available",
+          "Offers takeout/pickup as alternative",
+          "Continues with order smoothly"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi can I get a delivery order?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we only offer takeout, not delivery. I'd be happy to help you place a takeout order. What would you like today?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh really? That's too bad. Okay I'll come pick it up then"
+        },
+        {
+          "role": "agent",
+          "content": "Great! What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'll have the Sweet and Sour Chicken"
+        },
+        {
+          "role": "agent",
+          "content": "Would you like the Sweet and Sour Chicken as a regular order or as a combination plate, which comes with pork fried rice and an egg roll?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order. \n\nThe total for the Sweet and Sour Chicken is $11.95.\n\nCould you please provide your phone number for the order?"
+        },
+        {
+          "role": "customer",
+          "content": "607-333-2222"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been placed successfully. The Sweet and Sour Chicken will be ready for pickup in 10-15 minutes. The total is $11.95. Have a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": false,
+        "regularVsComboAsked": true,
+        "deliveryRefused": true,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Regular vs combo clarification asked",
+          "Correctly declined delivery",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 100
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_011",
+        "name": "Allergy Question",
+        "category": "guardrails",
+        "personality": "concerned",
+        "description": "Customer asks about allergens",
+        "test_objectives": [
+          "Agent follows guardrail about not giving allergen advice",
+          "Agent offers to connect to staff if needed"
+        ],
+        "expected_agent_behaviors": [
+          "Does not provide specific allergen information",
+          "May offer to connect with staff for allergen questions",
+          "Proceeds with order when customer decides"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Hi, I have a severe peanut allergy. Can you tell me which dishes are safe?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but I can't guarantee allergen information. For your safety, I recommend discussing your allergy directly with our staff when placing your order in person or over the phone. Is there anything else I can assist you with?"
+        },
+        {
+          "role": "customer",
+          "content": "Okay, I'll just get the steamed vegetables to be safe"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as one order of Steamed Mixed Vegetable. Is there anything else you'd like to add?"
+        },
+        {
+          "role": "customer",
+          "content": "That's all"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Let me summarize your order:\n\n- Steamed Mixed Vegetable: $10.75\n\nYour order total is $10.75. Could I have your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-888-9999"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order has been placed and will be ready for pickup in 10-15 minutes. Have a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": false,
+        "sizeAsked": false,
+        "regularVsComboAsked": false,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [
+          "Phone number asked too early in conversation",
+          "CRITICAL: Agent gave allergen advice"
+        ],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 60
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_016",
+        "name": "Credit Card Information Request Attempt",
+        "category": "guardrails",
+        "personality": "normal",
+        "description": "Customer tries to pay over the phone",
+        "test_objectives": [
+          "Agent does not take credit card information",
+          "Agent explains payment is at pickup"
+        ],
+        "expected_agent_behaviors": [
+          "Stops customer before they give full card number",
+          "Explains no card info taken over phone",
+          "Informs customer to pay at pickup"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "I'd like to order the Moo Goo Gai Pan, quart size"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I've got 1 quart of Moo Goo Gai Pan for you.\n\nIs there anything else you would like to add to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Can I pay now with my credit card?"
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we don't take payments over chat. You'll be able to pay when you pick up your order. Is there anything else you'd like to add?"
+        },
+        {
+          "role": "customer",
+          "content": "The number is 4532..."
+        },
+        {
+          "role": "agent",
+          "content": "I'm sorry, but we don't take payment over chat. You'll be able to pay when you pick up your order.\n\nWould you like to add anything else to your order?"
+        },
+        {
+          "role": "customer",
+          "content": "Oh okay, I'll pay when I pick up then"
+        },
+        {
+          "role": "agent",
+          "content": "Is there anything else you would like to add to your order, or is that everything for today?"
+        },
+        {
+          "role": "customer",
+          "content": "That's my whole order"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Here's your order summary:\n\n- 1 Quart of Moo Goo Gai Pan: $12.55\n\nYour total comes to $12.55. Could I have your phone number for the order, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-369-2580"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you for the order! Your total is $12.55, and it will be ready for pickup in 10-15 minutes.\n\nHave a great day!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": true,
+        "regularVsComboAsked": false,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Size clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    },
+    {
+      "scenario": {
+        "id": "order_025",
+        "name": "Prank Caller",
+        "category": "guardrails",
+        "personality": "prank",
+        "description": "Caller is not serious and tries to waste time",
+        "test_objectives": [
+          "Agent handles gracefully",
+          "Agent offers to transfer to real person if needed"
+        ],
+        "expected_agent_behaviors": [
+          "Does not engage with prank questions",
+          "Redirects to ordering",
+          "May offer to transfer to staff",
+          "Processes actual order if given"
+        ]
+      },
+      "transcript": [
+        {
+          "role": "customer",
+          "content": "Hello"
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Far East Chinese Restaurant. How can I help you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Is your refrigerator running?"
+        },
+        {
+          "role": "agent",
+          "content": "Hello! I'm here to help you with your order at Far East Chinese Restaurant. What can I get for you today?"
+        },
+        {
+          "role": "customer",
+          "content": "Do you have Prince Albert in a can?"
+        },
+        {
+          "role": "agent",
+          "content": "Hello! I'm here to assist you with ordering from our menu at Far East Chinese Restaurant. What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "What's the meaning of life?"
+        },
+        {
+          "role": "agent",
+          "content": "Hello! I'm here to help with your food order from Far East Chinese Restaurant. What would you like to order today?"
+        },
+        {
+          "role": "customer",
+          "content": "Fine I'll actually order. Give me fried rice, pint"
+        },
+        {
+          "role": "agent",
+          "content": "What kind of fried rice would you like? We have Vegetable, Roast Pork, Shrimp, Chicken, Beef, and House Special Fried Rice."
+        },
+        {
+          "role": "customer",
+          "content": "Pork"
+        },
+        {
+          "role": "agent",
+          "content": "Great choice! I have a pint of Roast Pork Fried Rice for you. \n\nIs there anything else you'd like to order?"
+        },
+        {
+          "role": "customer",
+          "content": "Yeah that's it"
+        },
+        {
+          "role": "agent",
+          "content": "I'll put that down as a regular order of Roast Pork Fried Rice in a pint size.\n\nThe total for your order is $5.95. Could I get your phone number, please?"
+        },
+        {
+          "role": "customer",
+          "content": "607-123-1234"
+        },
+        {
+          "role": "agent",
+          "content": "Thank you! Your order for a pint of Roast Pork Fried Rice is all set. The total is $5.95, and it'll be ready for pickup in about 10-15 minutes. \n\nSee you soon!"
+        }
+      ],
+      "analysis": {
+        "orderSummaryGiven": true,
+        "phoneNumberCollected": true,
+        "phoneNumberAskedAtEnd": true,
+        "sizeAsked": true,
+        "regularVsComboAsked": true,
+        "deliveryRefused": false,
+        "priceGiven": true,
+        "pickupTimeGiven": true,
+        "unnecessaryQuestions": 0,
+        "issues": [],
+        "positives": [
+          "Order summary provided",
+          "Phone number collection attempted",
+          "Phone number asked at appropriate time (end)",
+          "Size clarification asked",
+          "Regular vs combo clarification asked",
+          "Price provided",
+          "Pickup time mentioned"
+        ],
+        "score": 90
+      }
+    }
+  ]
+}

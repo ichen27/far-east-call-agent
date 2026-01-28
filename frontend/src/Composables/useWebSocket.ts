@@ -1,4 +1,5 @@
 import { ref, readonly, onUnmounted, type Ref } from 'vue'
+import { type OrderStatus } from '../types'
 
 /**
  * WebSocket Connection States
@@ -26,7 +27,7 @@ export interface Order {
   time: string
   date: string
   total: number
-  status: string
+  status: OrderStatus
 }
 
 /**

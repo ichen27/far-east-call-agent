@@ -1,167 +1,285 @@
-// socket.js - WebSocket server for frontend order display
-// This module handles REST API for orders and WebSocket connections for real-time updates
+/**
+ * @fileoverview WebSocket server for frontend order display and real-time updates.
+ *
+ * This module provides:
+ * - REST API endpoints for order management (GET orders, PUT status updates)
+ * - WebSocket connections for real-time order notifications
+ * - Integration with the order broadcaster for reliable message delivery
+ *
+ * @module socket
+ */
 
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
-// Use centralized database module for concurrency-safe operations
+
 import { getAllOrders, updateOrderStatus } from './database.js';
-// Use reliable order broadcaster
 import { orderBroadcaster } from './orderBroadcaster.js';
+import config from './config.js';
 
-// Create HTTP server with request handler for REST endpoints
-export const server = http.createServer((req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+// ---------------------------------------------------------------------------
+// HTTP Server Setup
+// ---------------------------------------------------------------------------
 
+/**
+ * HTTP server with REST API request handler.
+ * Handles order-related API endpoints.
+ */
+export const server = http.createServer(handleHttpRequest);
+
+/**
+ * Handles incoming HTTP requests and routes to appropriate handlers.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleHttpRequest(req, res) {
+  // Set CORS headers for all responses
+  setCorsHeaders(res);
+
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
     return;
   }
 
-  // GET /api/orders - Fetch all orders with their items
+  // Route to appropriate handler
   if (req.method === 'GET' && req.url === '/api/orders') {
+    handleGetOrders(req, res);
+  } else if (req.method === 'GET' && req.url === '/api/stats') {
+    handleGetStats(req, res);
+  } else if (req.method === 'PUT' && req.url?.match(/^\/api\/orders\/[\w-]+\/status$/)) {
+    handleUpdateOrderStatus(req, res);
+  } else {
+    handleNotFound(res);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HTTP Request Handlers
+// ---------------------------------------------------------------------------
+
+/**
+ * Sets CORS headers on the response.
+ *
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+/**
+ * Handles GET /api/orders - Fetches all orders with their items.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetOrders(req, res) {
+  try {
+    const ordersWithItems = getAllOrders();
+    sendJsonResponse(res, 200, ordersWithItems);
+  } catch (error) {
+    console.error('[Socket] Error fetching orders:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch orders' });
+  }
+}
+
+/**
+ * Handles GET /api/stats - Returns server statistics for monitoring.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetStats(req, res) {
+  sendJsonResponse(res, 200, {
+    connectedClients: orderBroadcaster.getClientCount(),
+    queuedOrders: orderBroadcaster.pendingQueue.length,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Handles PUT /api/orders/:orderNumber/status - Updates an order's status.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleUpdateOrderStatus(req, res) {
+  const orderNumber = req.url.split('/')[3];
+
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+  });
+
+  req.on('end', () => {
     try {
-      // Use centralized database function
-      const ordersWithItems = getAllOrders();
+      const { status } = JSON.parse(body);
+      const updated = updateOrderStatus(orderNumber, status);
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(ordersWithItems));
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
-    }
-    return;
-  }
+      if (updated) {
+        // Broadcast status update to all connected clients
+        orderBroadcaster.broadcast('order_status_update', {
+          orderNumber,
+          status,
+          updatedAt: new Date().toISOString(),
+        });
 
-  // GET /api/stats - Get server statistics (useful for monitoring)
-  if (req.method === 'GET' && req.url === '/api/stats') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      connectedClients: orderBroadcaster.getClientCount(),
-      queuedOrders: orderBroadcaster.pendingQueue.length,
-      timestamp: new Date().toISOString()
-    }));
-    return;
-  }
-
-  // PUT /api/orders/:orderNumber/status - Update order status
-  if (req.method === 'PUT' && req.url.match(/^\/api\/orders\/[\w-]+\/status$/)) {
-    const orderNumber = req.url.split('/')[3];
-
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      try {
-        const { status } = JSON.parse(body);
-
-        // Use centralized database function
-        const updated = updateOrderStatus(orderNumber, status);
-
-        if (updated) {
-          // Broadcast status update to all clients
-          orderBroadcaster.broadcast('order_status_update', {
-            orderNumber,
-            status,
-            updatedAt: new Date().toISOString()
-          });
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, orderNumber, status }));
-        } else {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Order not found' }));
-        }
-      } catch (error) {
-        console.error('Error updating order:', error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to update order' }));
+        sendJsonResponse(res, 200, { success: true, orderNumber, status });
+      } else {
+        sendJsonResponse(res, 404, { error: 'Order not found' });
       }
-    });
-    return;
-  }
+    } catch (error) {
+      console.error('[Socket] Error updating order:', error);
+      sendJsonResponse(res, 500, { error: 'Failed to update order' });
+    }
+  });
+}
 
-  // 404 for unknown routes
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found' }));
-});
+/**
+ * Handles unknown routes with a 404 response.
+ *
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleNotFound(res) {
+  sendJsonResponse(res, 404, { error: 'Not found' });
+}
 
-// Create WebSocket server
+/**
+ * Sends a JSON response with the specified status code and data.
+ *
+ * @param {http.ServerResponse} res - The HTTP response
+ * @param {number} statusCode - HTTP status code
+ * @param {Object} data - Data to serialize as JSON
+ */
+function sendJsonResponse(res, statusCode, data) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket Server Setup
+// ---------------------------------------------------------------------------
+
+/**
+ * WebSocket server for real-time frontend updates.
+ */
 export const wss = new WebSocketServer({ server });
 
-// Use the centralized broadcaster's client management
+/**
+ * Handles new WebSocket connections from frontend clients.
+ */
 wss.on('connection', (ws) => {
   console.log('[Socket] Frontend client connected');
 
-  // Register client with broadcaster
+  // Register client with the broadcaster for order updates
   orderBroadcaster.addClient(ws);
 
+  // Handle incoming messages
   ws.on('message', (data) => {
     const message = data.toString();
     try {
       const parsed = JSON.parse(message);
-      handleMessage(ws, parsed);
+      handleWebSocketMessage(ws, parsed);
     } catch {
+      // Echo non-JSON messages for debugging
       ws.send(`Echo: ${message}`);
     }
   });
 
+  // Handle connection close
   ws.on('close', () => {
-    // Unregister client from broadcaster
     orderBroadcaster.removeClient(ws);
     console.log('[Socket] Frontend client disconnected');
   });
 
+  // Handle connection errors
   ws.on('error', (error) => {
     console.error('[Socket] Client error:', error.message);
     orderBroadcaster.removeClient(ws);
   });
 
+  // Send welcome message
   ws.send(JSON.stringify({ type: 'welcome', message: 'Connected!' }));
 });
 
-function handleMessage(ws, data) {
+/**
+ * Handles WebSocket messages from clients.
+ *
+ * @param {WebSocket} ws - The WebSocket connection
+ * @param {Object} data - Parsed message data
+ */
+function handleWebSocketMessage(ws, data) {
   switch (data.type) {
     case 'ping':
       ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
       break;
+
     case 'broadcast':
       orderBroadcaster.broadcast('broadcast', data.payload);
       break;
+
     case 'get_stats':
-      ws.send(JSON.stringify({
-        type: 'stats',
-        connectedClients: orderBroadcaster.getClientCount(),
-        timestamp: Date.now()
-      }));
+      ws.send(
+        JSON.stringify({
+          type: 'stats',
+          connectedClients: orderBroadcaster.getClientCount(),
+          timestamp: Date.now(),
+        })
+      );
       break;
+
     default:
       ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
   }
 }
 
-// Legacy export for backward compatibility
-// This function is now handled by orderBroadcaster
+// ---------------------------------------------------------------------------
+// Legacy Exports (Backward Compatibility)
+// ---------------------------------------------------------------------------
+
+/**
+ * Broadcasts a new order to all connected clients.
+ * This function delegates to orderBroadcaster for reliable delivery.
+ *
+ * @param {Object} order - The order to broadcast
+ * @returns {Promise<void>}
+ * @deprecated Use orderBroadcaster.broadcastOrder() directly
+ */
 export function broadcastNewOrder(order) {
   return orderBroadcaster.broadcastOrder(order);
 }
 
-// Legacy exports for backward compatibility
+/**
+ * Legacy client count accessor for backward compatibility.
+ * @deprecated Use orderBroadcaster.getClientCount() directly
+ */
 export const clients = {
-  get size() { return orderBroadcaster.getClientCount(); }
+  get size() {
+    return orderBroadcaster.getClientCount();
+  },
 };
 
+/**
+ * Broadcasts a message to all connected clients.
+ *
+ * @param {string} type - Message type
+ * @param {Object} payload - Message payload
+ * @returns {void}
+ * @deprecated Use orderBroadcaster.broadcast() directly
+ */
 export function broadcast(type, payload) {
   return orderBroadcaster.broadcast(type, payload);
 }
 
-const PORT = process.env.SOCKET_PORT || 8080;
+// ---------------------------------------------------------------------------
+// Server Startup
+// ---------------------------------------------------------------------------
 
-server.listen(PORT, () => {
-  console.log(`[Socket] WebSocket server running on ws://localhost:${PORT}`);
-  console.log('[Socket] REST API available at http://localhost:' + PORT);
+server.listen(config.ports.socket, () => {
+  console.log(`[Socket] WebSocket server running on ws://localhost:${config.ports.socket}`);
+  console.log(`[Socket] REST API available at http://localhost:${config.ports.socket}`);
   console.log('[Socket] Waiting for clients to connect...\n');
 });

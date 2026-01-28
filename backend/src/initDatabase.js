@@ -1,110 +1,190 @@
+/**
+ * @fileoverview Database initialization script for Far East Restaurant.
+ *
+ * This script creates the SQLite database schema and populates the menu_items
+ * table with the complete restaurant menu. It should be run once during initial
+ * setup or when the menu needs to be refreshed.
+ *
+ * Key features:
+ * - WAL mode for concurrent write performance (supports 5+ concurrent writers)
+ * - Foreign key constraints enforced at database level
+ * - Optimized indexes for common query patterns
+ * - CHECK constraints for data validation
+ *
+ * Usage: node initDatabase.js
+ *
+ * @module initDatabase
+ */
+
 import Database from 'better-sqlite3';
-import fs from 'fs';
+import config from './config.js';
 
-/*
-================================================================================
-FAR EAST RESTAURANT ORDER MANAGEMENT DATABASE SCHEMA
-================================================================================
+// ---------------------------------------------------------------------------
+// Database Connection
+// ---------------------------------------------------------------------------
 
-OPTIMIZATIONS APPLIED:
-1. WAL mode enabled for better concurrent write performance (supports 5+ writers)
-2. Foreign keys enforced at database level
-3. Proper indexes on frequently queried columns
-4. CHECK constraints for data validation (status, order_type)
-5. UNIQUE constraint on order_number
-6. Computed column for order_items.total (generated column)
-7. Optimized pragmas for performance and reliability
+/**
+ * Creates and configures the SQLite database connection.
+ */
+const db = new Database(config.database.path);
 
-TABLES:
-- menu_items: Restaurant menu catalog
-- orders: Customer order records
-- order_items: Individual items within orders
+// ---------------------------------------------------------------------------
+// Database Configuration
+// ---------------------------------------------------------------------------
 
-COMMON QUERY PATTERNS OPTIMIZED:
-- Order lookup by order_number (unique index)
-- Orders filtered/sorted by created_at (index)
-- Orders filtered by status (index)
-- Order items lookup by order_id (index via foreign key)
-- Daily order count for order number generation (index on created_at)
-================================================================================
-*/
+/**
+ * Configures database pragmas for optimal performance and reliability.
+ * These settings must be applied on every connection.
+ */
+function configureDatabasePragmas() {
+  // Enable WAL mode for better concurrent write performance
+  // WAL allows multiple readers and one writer simultaneously
+  db.pragma('journal_mode = WAL');
 
-// Create/open the database
-const db = new Database('fareast.db');
+  // Enable foreign key enforcement (disabled by default in SQLite)
+  db.pragma('foreign_keys = ON');
 
-// ==================== DATABASE CONFIGURATION PRAGMAS ====================
-// These must be set on every connection for proper behavior
+  // Set busy timeout for concurrent access (wait before returning SQLITE_BUSY)
+  db.pragma(`busy_timeout = ${config.database.busyTimeout}`);
 
-// Enable WAL mode for better concurrent write performance
-// WAL allows multiple readers and one writer simultaneously
-// Critical for handling 5 concurrent writers requirement
-db.pragma('journal_mode = WAL');
+  // Optimize cache size (negative value = KB, so -64000 = 64MB)
+  db.pragma('cache_size = -64000');
 
-// Enable foreign key enforcement
-// SQLite has foreign keys disabled by default for backwards compatibility
-db.pragma('foreign_keys = ON');
+  // NORMAL synchronous mode is safe with WAL and provides good durability
+  db.pragma('synchronous = NORMAL');
 
-// Set busy timeout to 5 seconds for concurrent access
-// When the database is locked, wait up to 5000ms before returning SQLITE_BUSY
-db.pragma('busy_timeout = 5000');
+  // Enable memory-mapped I/O for better read performance (256MB)
+  db.pragma('mmap_size = 268435456');
 
-// Optimize cache size (negative value = KB, so -64000 = 64MB)
-// Larger cache improves read performance for repeated queries
-db.pragma('cache_size = -64000');
+  // Store temp tables in memory for better performance
+  db.pragma('temp_store = MEMORY');
 
-// Set synchronous to NORMAL for better write performance with WAL
-// NORMAL is safe with WAL mode and provides good durability
-db.pragma('synchronous = NORMAL');
+  // Log configured pragma values
+  console.log('[DB] Database pragmas configured:');
+  console.log('  - journal_mode:', db.pragma('journal_mode', { simple: true }));
+  console.log('  - foreign_keys:', db.pragma('foreign_keys', { simple: true }));
+  console.log('  - busy_timeout:', db.pragma('busy_timeout', { simple: true }));
+  console.log('  - synchronous:', db.pragma('synchronous', { simple: true }));
+}
 
-// Enable memory-mapped I/O for better read performance (256MB)
-db.pragma('mmap_size = 268435456');
+// ---------------------------------------------------------------------------
+// Schema Definitions
+// ---------------------------------------------------------------------------
 
-// Store temp tables in memory for better performance
-db.pragma('temp_store = MEMORY');
+/**
+ * Creates the menu_items table for storing the restaurant menu.
+ */
+function createMenuItemsTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS menu_items (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_number     TEXT,
+      name            TEXT NOT NULL,
+      description     TEXT,
+      price_small     REAL,
+      price_large     REAL,
+      price_single    REAL,
+      included        TEXT,
+      category        TEXT,
+      is_spicy        INTEGER DEFAULT 0 CHECK (is_spicy IN (0, 1))
+    )
+  `);
 
-console.log('Database pragmas configured:');
-console.log('  - journal_mode:', db.pragma('journal_mode', { simple: true }));
-console.log('  - foreign_keys:', db.pragma('foreign_keys', { simple: true }));
-console.log('  - busy_timeout:', db.pragma('busy_timeout', { simple: true }));
-console.log('  - synchronous:', db.pragma('synchronous', { simple: true }));
+  // Index for menu item name lookups
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_name ON menu_items(name)`);
 
-// ==================== MENU_ITEMS TABLE ====================
-// Stores the restaurant menu catalog
-// Note: This table is relatively static (menu changes infrequently)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS menu_items (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_number     TEXT,
-    name            TEXT NOT NULL,
-    description     TEXT,
-    price_small     REAL,
-    price_large     REAL,
-    price_single    REAL,
-    included        TEXT,
-    category        TEXT,
-    is_spicy        INTEGER DEFAULT 0 CHECK (is_spicy IN (0, 1))
-  )
-`);
+  // Index for category filtering
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category)`);
+}
 
-// Index for menu item name lookups (used when matching order items to menu)
-// Helps with: SELECT id FROM menu_items WHERE name LIKE ?
-db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_name ON menu_items(name)`);
+/**
+ * Creates the orders table for storing customer orders.
+ */
+function createOrdersTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_number    TEXT NOT NULL UNIQUE,
+      phone_number    TEXT NOT NULL,
+      status          TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled')),
+      order_type      TEXT DEFAULT 'pickup' CHECK (order_type IN ('pickup', 'delivery')),
+      total           REAL,
+      notes           TEXT DEFAULT '',
+      created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-// Index for category filtering (if menu browsing by category is needed)
-db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category)`);
+  // Index for order lookups by order_number (frequently queried)
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`);
 
-// Clear existing data (for re-runs)
-db.exec('DELETE FROM menu_items');
+  // Index for orders sorted by created_at (dashboard queries)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`);
 
-// Insert statement
-const insert = db.prepare(`
-  INSERT INTO menu_items (item_number, name, description, price_small, price_large, price_single, included, category, is_spicy)
-  VALUES (@item_number, @name, @description, @price_small, @price_large, @price_single, @included, @category, @is_spicy)
-`);
+  // Index for filtering orders by status
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
 
-// Menu data - parsed from menu_with_descriptions.txt
+  // Composite index for daily order counting
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at_date ON orders(created_at)`);
+}
+
+/**
+ * Creates the order_items table for storing individual items within orders.
+ */
+function createOrderItemsTable() {
+  // Check if table already exists
+  const tableExists = db.prepare(`
+    SELECT name FROM sqlite_master
+    WHERE type='table' AND name='order_items'
+  `).get();
+
+  if (!tableExists) {
+    db.exec(`
+      CREATE TABLE order_items (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id        INTEGER NOT NULL,
+        menu_item_id    INTEGER,
+        item_name       TEXT NOT NULL,
+        quantity        INTEGER DEFAULT 1 CHECK (quantity > 0),
+        size            TEXT CHECK (size IS NULL OR size IN ('Pt', 'Qt', 'S', 'L', 'Combination')),
+        unit_price      REAL NOT NULL CHECK (unit_price >= 0),
+        total           REAL GENERATED ALWAYS AS (quantity * unit_price) STORED,
+        notes           TEXT DEFAULT '',
+        created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
+      )
+    `);
+    console.log('[DB] Created order_items table with generated total column');
+  } else {
+    console.log('[DB] order_items table already exists - keeping existing structure');
+
+    // Ensure size column exists (migration from older schema)
+    try {
+      db.exec(`ALTER TABLE order_items ADD COLUMN size TEXT`);
+      console.log('[DB] Added size column to order_items');
+    } catch {
+      // Column already exists, ignore
+    }
+  }
+
+  // Index for order_id foreign key (critical for JOIN performance)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`);
+
+  // Index for menu_item_id foreign key (for analytics)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_menu_item_id ON order_items(menu_item_id)`);
+}
+
+// ---------------------------------------------------------------------------
+// Menu Data
+// ---------------------------------------------------------------------------
+
+/**
+ * Complete menu items for Far East Kitchen restaurant.
+ * @type {Array<Object>}
+ */
 const menuItems = [
-  // ==================== APPETIZERS ====================
+  // APPETIZERS
   { item_number: '1', name: 'Vegetable Egg Roll', description: 'Crispy fried roll stuffed with seasoned cabbage and vegetables.', price_single: 1.90, category: 'Appetizers', included: null },
   { item_number: '2', name: 'Roast Pork Egg Roll', description: 'Crispy fried roll filled with seasoned roast pork and vegetables.', price_single: 1.90, category: 'Appetizers', included: null },
   { item_number: '3', name: 'Shrimp Egg Roll', description: 'Crispy fried roll stuffed with shrimp and vegetables.', price_single: 2.00, category: 'Appetizers', included: null },
@@ -124,7 +204,7 @@ const menuItems = [
   { item_number: '17', name: 'Crab Rangoon', description: 'Crispy wontons filled with cream cheese and crab.', price_single: 6.25, category: 'Appetizers', included: null },
   { item_number: '18', name: 'French Fries', description: 'Classic golden fried potato strips.', price_small: 3.35, price_large: 5.45, category: 'Appetizers', included: null },
 
-  // ==================== SOUP ====================
+  // SOUP
   { item_number: '19', name: 'Wonton Soup', description: 'Clear broth with pork-filled wonton dumplings.', price_small: 3.35, price_large: 5.35, category: 'Soup', included: 'Crisp Noodles' },
   { item_number: '20', name: 'Egg Drop Soup', description: 'Silky beaten egg ribbons in savory chicken broth.', price_small: 3.35, price_large: 5.35, category: 'Soup', included: 'Crisp Noodles' },
   { item_number: '21', name: 'Chicken Rice Soup', description: 'Comforting broth with tender chicken and rice.', price_small: 3.35, price_large: 5.35, category: 'Soup', included: 'Crisp Noodles' },
@@ -138,7 +218,7 @@ const menuItems = [
   { item_number: '27b', name: 'House Special Chow Fun Soup', description: 'Wide rice noodle soup with mixed meats and vegetables.', price_large: 7.35, category: 'Soup', included: 'Crisp Noodles' },
   { item_number: '27c', name: 'House Special Soup', description: "Chef's signature soup with assorted meats and vegetables.", price_large: 7.35, category: 'Soup', included: 'Crisp Noodles' },
 
-  // ==================== CHOW MEIN ====================
+  // CHOW MEIN
   { item_number: '28', name: 'Chicken Chow Mein', description: 'Tender chicken with bean sprouts and vegetables in savory sauce.', price_small: 7.35, price_large: 10.55, category: 'Chow Mein', included: 'White Rice & Crisp Noodles' },
   { item_number: '29', name: 'Roast Pork Chow Mein', description: 'Sliced roast pork with bean sprouts and vegetables.', price_small: 7.35, price_large: 10.55, category: 'Chow Mein', included: 'White Rice & Crisp Noodles' },
   { item_number: '30', name: 'Mixed Vegetable Chow Mein', description: 'Assorted fresh vegetables in light savory sauce.', price_small: 6.95, price_large: 10.15, category: 'Chow Mein', included: 'White Rice & Crisp Noodles' },
@@ -146,7 +226,7 @@ const menuItems = [
   { item_number: '32', name: 'Shrimp Chow Mein', description: 'Tender shrimp with bean sprouts and vegetables.', price_small: 7.95, price_large: 11.15, category: 'Chow Mein', included: 'White Rice & Crisp Noodles' },
   { item_number: '33', name: 'Special Chow Mein', description: 'Combination of shrimp, chicken, and pork with vegetables.', price_small: 7.95, price_large: 11.15, category: 'Chow Mein', included: 'White Rice & Crisp Noodles' },
 
-  // ==================== CHOW FUN / MEI FUN ====================
+  // CHOW FUN / MEI FUN
   { item_number: '34', name: 'Roast Pork Chow Fun or Mei Fun', description: 'Wide or thin rice noodles stir-fried with sliced roast pork.', price_single: 10.55, category: 'Chow Fun / Mei Fun', included: null },
   { item_number: '35', name: 'Chicken Chow Fun or Mei Fun', description: 'Wide or thin rice noodles stir-fried with tender chicken.', price_single: 10.55, category: 'Chow Fun / Mei Fun', included: null },
   { item_number: '36', name: 'Beef Chow Fun or Mei Fun', description: 'Wide or thin rice noodles stir-fried with sliced beef.', price_single: 10.95, category: 'Chow Fun / Mei Fun', included: null },
@@ -155,7 +235,7 @@ const menuItems = [
   { item_number: '39', name: 'Vegetable Chow Fun or Mei Fun', description: 'Wide or thin rice noodles stir-fried with mixed vegetables.', price_single: 10.15, category: 'Chow Fun / Mei Fun', included: null },
   { item_number: '39a', name: 'Singapore Mei Fun', description: 'Thin rice noodles stir-fried with curry, shrimp, pork, and vegetables.', price_single: 11.55, category: 'Chow Fun / Mei Fun', included: null, is_spicy: 1 },
 
-  // ==================== CHOP SUEY ====================
+  // CHOP SUEY
   { item_number: '40', name: 'Mixed Vegetable Chop Suey', description: 'Assorted vegetables stir-fried in light sauce.', price_small: 6.95, price_large: 10.15, category: 'Chop Suey', included: 'White Rice' },
   { item_number: '41', name: 'Roast Pork Chop Suey', description: 'Sliced roast pork with mixed vegetables in sauce.', price_small: 7.35, price_large: 10.55, category: 'Chop Suey', included: 'White Rice' },
   { item_number: '42', name: 'Beef Chop Suey', description: 'Sliced beef with mixed vegetables in savory sauce.', price_small: 7.95, price_large: 11.15, category: 'Chop Suey', included: 'White Rice' },
@@ -163,7 +243,7 @@ const menuItems = [
   { item_number: '44', name: 'Chicken Chop Suey', description: 'Diced chicken with mixed vegetables in light sauce.', price_small: 7.35, price_large: 10.55, category: 'Chop Suey', included: 'White Rice' },
   { item_number: '45', name: 'Special Chop Suey', description: 'Combination of shrimp, chicken, and pork with vegetables.', price_small: 7.95, price_large: 10.95, category: 'Chop Suey', included: 'White Rice' },
 
-  // ==================== FRIED RICE ====================
+  // FRIED RICE
   { item_number: '46', name: 'Vegetable Fried Rice', description: 'Wok-fried rice with mixed vegetables and egg.', price_small: 5.55, price_large: 9.55, category: 'Fried Rice', included: null },
   { item_number: '47', name: 'Roast Pork Fried Rice', description: 'Wok-fried rice with diced roast pork and egg.', price_small: 5.95, price_large: 9.95, category: 'Fried Rice', included: null },
   { item_number: '48', name: 'Shrimp Fried Rice', description: 'Wok-fried rice with tender shrimp and egg.', price_small: 6.75, price_large: 10.55, category: 'Fried Rice', included: null },
@@ -171,7 +251,7 @@ const menuItems = [
   { item_number: '49a', name: 'Beef Fried Rice', description: 'Wok-fried rice with sliced beef and egg.', price_small: 6.75, price_large: 10.55, category: 'Fried Rice', included: null },
   { item_number: '50', name: 'House Special Fried Rice', description: 'Wok-fried rice with shrimp, chicken, pork, and egg.', price_small: 6.95, price_large: 10.95, category: 'Fried Rice', included: null },
 
-  // ==================== LO MEIN ====================
+  // LO MEIN
   { item_number: '51', name: 'Vegetable Lo Mein', description: 'Soft egg noodles stir-fried with mixed vegetables.', price_small: 7.25, price_large: 10.75, category: 'Lo Mein', included: null },
   { item_number: '52', name: 'Roast Pork Lo Mein', description: 'Soft egg noodles stir-fried with sliced roast pork.', price_small: 7.75, price_large: 10.95, category: 'Lo Mein', included: null },
   { item_number: '53', name: 'Beef Lo Mein', description: 'Soft egg noodles stir-fried with tender sliced beef.', price_small: 7.95, price_large: 11.55, category: 'Lo Mein', included: null },
@@ -179,14 +259,14 @@ const menuItems = [
   { item_number: '55', name: 'Shrimp Lo Mein', description: 'Soft egg noodles stir-fried with tender shrimp.', price_small: 7.95, price_large: 11.55, category: 'Lo Mein', included: null },
   { item_number: '56', name: 'Special Lo Mein', description: 'Soft egg noodles with shrimp, chicken, and pork.', price_small: 8.25, price_large: 11.95, category: 'Lo Mein', included: null },
 
-  // ==================== SIDE ORDER ====================
+  // SIDE ORDER
   { item_number: 'S1', name: 'White Rice', description: 'Steamed jasmine white rice.', price_small: 3.00, price_large: 4.00, category: 'Side Order', included: null },
   { item_number: 'S2', name: 'Fortune Cookie', description: 'Crispy cookies with paper fortunes inside.', price_single: 1.00, category: 'Side Order', included: null },
   { item_number: 'S3', name: 'Soda (Can)', description: 'Assorted canned soft drinks.', price_single: 1.30, category: 'Side Order', included: null },
   { item_number: 'S4', name: 'Crispy Noodle', description: 'Crunchy fried noodles for topping soups or eating plain.', price_single: 1.00, category: 'Side Order', included: null },
   { item_number: 'S5', name: 'Homemade Iced Tea', description: 'Refreshing house-brewed chilled tea.', price_single: 2.50, category: 'Side Order', included: null },
 
-  // ==================== CHEF'S SPECIALTIES ====================
+  // CHEF'S SPECIALTIES
   { item_number: 'C1', name: 'Jumbo Shrimp or Beef Szechuan Style', description: 'Large shrimp or beef stir-fried in spicy Szechuan chili sauce.', price_single: 13.35, category: "Chef's Specialties", included: 'White Rice', is_spicy: 1 },
   { item_number: 'C2', name: 'Pork or Chicken Szechuan Style', description: 'Tender pork or chicken in spicy Szechuan chili sauce.', price_single: 12.55, category: "Chef's Specialties", included: 'White Rice', is_spicy: 1 },
   { item_number: 'C3', name: 'Crispy Shrimp', description: 'Lightly battered shrimp fried until golden and crispy.', price_single: 13.95, category: "Chef's Specialties", included: 'White Rice' },
@@ -222,7 +302,7 @@ const menuItems = [
   { item_number: 'C33', name: 'Special Duck', description: "Half roast duck with chef's special preparation.", price_single: 17.95, category: "Chef's Specialties", included: 'White Rice' },
   { item_number: '34', name: 'Seafood Delight', description: 'Shrimp, scallops, and crabmeat with mixed vegetables.', price_single: 16.95, category: "Chef's Specialties", included: 'White Rice' },
 
-  // ==================== BEEF ====================
+  // BEEF
   { item_number: '57', name: 'Beef w. Bean Sprouts', description: 'Sliced beef stir-fried with crisp fresh bean sprouts.', price_small: 8.55, price_large: 12.95, category: 'Beef', included: 'White Rice' },
   { item_number: '58', name: 'Pepper Steak w. Onion', description: 'Tender beef with bell peppers and onions in savory sauce.', price_small: 8.55, price_large: 12.95, category: 'Beef', included: 'White Rice' },
   { item_number: '59', name: 'Beef w. Pepper & Tomato', description: 'Sliced beef with bell peppers and fresh tomatoes.', price_small: 8.55, price_large: 12.95, category: 'Beef', included: 'White Rice' },
@@ -236,7 +316,7 @@ const menuItems = [
   { item_number: '66a', name: 'Beef w. Black Bean Sauce', description: 'Sliced beef in savory fermented black bean sauce.', price_small: 8.55, price_large: 12.95, category: 'Beef', included: 'White Rice' },
   { item_number: '67', name: 'Beef w. Cashew Nuts', description: 'Tender beef stir-fried with roasted cashews.', price_single: 12.95, category: 'Beef', included: 'White Rice' },
 
-  // ==================== ROAST PORK ====================
+  // ROAST PORK
   { item_number: '68', name: 'Roast Pork w. Bean Sprouts', description: 'Sliced roast pork stir-fried with crisp bean sprouts.', price_small: 8.15, price_large: 12.55, category: 'Roast Pork', included: 'White Rice' },
   { item_number: '69', name: 'Roast Pork w. Chinese Vegetables', description: 'Sliced roast pork with assorted Chinese vegetables.', price_small: 8.15, price_large: 12.55, category: 'Roast Pork', included: 'White Rice' },
   { item_number: '70', name: 'Roast Pork w. Mushrooms', description: 'Sliced roast pork stir-fried with fresh mushrooms.', price_small: 8.15, price_large: 12.55, category: 'Roast Pork', included: 'White Rice' },
@@ -245,7 +325,7 @@ const menuItems = [
   { item_number: '73', name: 'Roast Pork w. Oyster Sauce', description: 'Sliced roast pork in rich savory oyster sauce.', price_small: 8.15, price_large: 12.55, category: 'Roast Pork', included: 'White Rice' },
   { item_number: '74', name: 'Roast Pork w. Broccoli', description: 'Sliced roast pork stir-fried with fresh broccoli.', price_small: 8.15, price_large: 12.55, category: 'Roast Pork', included: 'White Rice' },
 
-  // ==================== CHICKEN ====================
+  // CHICKEN
   { item_number: '75', name: 'Chicken w. Bean Curd', description: 'Tender chicken with soft tofu in savory sauce.', price_small: 8.15, price_large: 12.55, category: 'Chicken', included: 'White Rice' },
   { item_number: '76', name: 'Chicken w. Snow Peas', description: 'Diced chicken with crisp snow pea pods.', price_small: 8.15, price_large: 12.55, category: 'Chicken', included: 'White Rice' },
   { item_number: '77', name: 'Chicken w. Pepper & Tomato', description: 'Tender chicken with bell peppers and fresh tomatoes.', price_small: 8.15, price_large: 12.55, category: 'Chicken', included: 'White Rice' },
@@ -256,7 +336,7 @@ const menuItems = [
   { item_number: '81a', name: 'Chicken w. Black Bean Sauce', description: 'Diced chicken in savory fermented black bean sauce.', price_small: 8.15, price_large: 12.55, category: 'Chicken', included: 'White Rice' },
   { item_number: '82', name: 'Chicken w. Cashew Nuts', description: 'Tender chicken stir-fried with roasted cashews.', price_single: 12.55, category: 'Chicken', included: 'White Rice' },
 
-  // ==================== SEAFOOD ====================
+  // SEAFOOD
   { item_number: '83', name: 'Lobster Sauce', description: 'Savory egg-based sauce with ground pork, no lobster.', price_small: 4.50, price_large: 6.95, category: 'Seafood', included: 'White Rice' },
   { item_number: '84', name: 'Shrimp w. Bean Sprouts', description: 'Tender shrimp stir-fried with crisp bean sprouts.', price_small: 8.55, price_large: 13.35, category: 'Seafood', included: 'White Rice' },
   { item_number: '85', name: 'Shrimp w. Lobster Sauce', description: 'Tender shrimp in savory egg-based lobster sauce.', price_small: 8.55, price_large: 13.35, category: 'Seafood', included: 'White Rice' },
@@ -271,18 +351,18 @@ const menuItems = [
   { item_number: '93a', name: 'Shrimp w. Black Bean Sauce', description: 'Shrimp in savory fermented black bean sauce.', price_small: 8.55, price_large: 13.35, category: 'Seafood', included: 'White Rice' },
   { item_number: '94', name: 'Shrimp w. Cashew Nuts', description: 'Tender shrimp stir-fried with roasted cashews.', price_single: 13.35, category: 'Seafood', included: 'White Rice' },
 
-  // ==================== EGG FOO YOUNG ====================
+  // EGG FOO YOUNG
   { item_number: '95', name: 'Roast Pork Egg Foo Young', description: 'Fluffy egg omelette patties with roast pork and vegetables.', price_single: 11.15, category: 'Egg Foo Young', included: 'White Rice' },
   { item_number: '96', name: 'Shrimp Egg Foo Young', description: 'Fluffy egg omelette patties with shrimp and vegetables.', price_single: 11.95, category: 'Egg Foo Young', included: 'White Rice' },
   { item_number: '97', name: 'Chicken Egg Foo Young', description: 'Fluffy egg omelette patties with chicken and vegetables.', price_single: 11.15, category: 'Egg Foo Young', included: 'White Rice' },
   { item_number: '98', name: 'Vegetable Egg Foo Young', description: 'Fluffy egg omelette patties with mixed vegetables.', price_single: 10.95, category: 'Egg Foo Young', included: 'White Rice' },
 
-  // ==================== SWEET & SOUR ====================
+  // SWEET & SOUR
   { item_number: '99', name: 'Sweet & Sour Pork', description: 'Crispy battered pork chunks in tangy sweet and sour sauce.', price_single: 11.95, category: 'Sweet & Sour', included: 'White Rice' },
   { item_number: '100', name: 'Sweet & Sour Shrimp', description: 'Crispy battered shrimp in tangy sweet and sour sauce.', price_single: 12.95, category: 'Sweet & Sour', included: 'White Rice' },
   { item_number: '101', name: 'Sweet & Sour Chicken', description: 'Crispy battered chicken in tangy sweet and sour sauce.', price_single: 11.95, category: 'Sweet & Sour', included: 'White Rice' },
 
-  // ==================== VEGETABLE DISHES ====================
+  // VEGETABLE DISHES
   { item_number: '102', name: 'Sauteed Mixed Vegetable', description: 'Assorted fresh vegetables stir-fried in light sauce.', price_single: 10.75, category: 'Vegetable Dishes', included: 'White Rice' },
   { item_number: '103a', name: 'Mixed Vegetable w. Garlic Sauce', description: 'Assorted vegetables in savory brown garlic sauce.', price_single: 10.75, category: 'Vegetable Dishes', included: 'White Rice' },
   { item_number: '104', name: 'Broccoli w. Garlic Sauce', description: 'Fresh broccoli florets in savory brown garlic sauce.', price_single: 10.75, category: 'Vegetable Dishes', included: 'White Rice' },
@@ -293,7 +373,7 @@ const menuItems = [
   { item_number: '110', name: 'Sesame Bean Curd', description: 'Crispy fried tofu coated in sweet sesame glaze.', price_single: 10.75, category: 'Vegetable Dishes', included: 'White Rice' },
   { item_number: '111', name: 'Bean Curd w. Garlic Sauce', description: 'Soft tofu in savory brown garlic sauce.', price_single: 10.75, category: 'Vegetable Dishes', included: 'White Rice' },
 
-  // ==================== SPECIALTIES (A-Items) ====================
+  // SPECIALTIES (A-Items)
   { item_number: 'A1', name: 'Chicken Wing (4 pcs) or Half Chicken', description: 'Crispy fried chicken wings or half chicken, golden and juicy.', price_single: 7.75, category: 'Specialties', included: null },
   { item_number: 'A2', name: 'Spare Ribs Tips', description: 'Tender fried pork rib tips with sweet glaze.', price_small: 7.75, price_large: 11.95, category: 'Specialties', included: null },
   { item_number: 'A3', name: 'Fried Scallop', description: 'Lightly battered sea scallops fried until golden.', price_single: 6.25, category: 'Specialties', included: null },
@@ -302,14 +382,14 @@ const menuItems = [
   { item_number: 'A6', name: 'Fried Chicken Wings w. Garlic Sauce', description: 'Crispy fried wings tossed in savory garlic sauce.', price_single: 8.75, category: 'Specialties', included: null },
   { item_number: 'A8', name: 'Fried Baby Shrimp', description: 'Small shrimp lightly battered and fried crispy.', price_single: 7.75, category: 'Specialties', included: null },
 
-  // ==================== DIET MENU ====================
+  // DIET MENU
   { item_number: 'D1', name: 'Steamed Mixed Vegetable', description: 'Assorted vegetables steamed without oil or salt.', price_single: 10.75, category: 'Diet Menu', included: 'White Rice & Sauce on side' },
   { item_number: 'D2', name: 'Steamed Chicken w. Mixed Vegetables', description: 'Tender steamed chicken breast with assorted vegetables.', price_single: 12.55, category: 'Diet Menu', included: 'White Rice & Sauce on side' },
   { item_number: 'D3', name: 'Steamed Jumbo Shrimp w. Mixed Vegetable', description: 'Large steamed shrimp with assorted vegetables.', price_single: 13.35, category: 'Diet Menu', included: 'White Rice & Sauce on side' },
   { item_number: 'D4', name: 'Steamed Jumbo Shrimp & Chicken w. Mixed Vegetable', description: 'Steamed shrimp and chicken with assorted vegetables.', price_single: 13.95, category: 'Diet Menu', included: 'White Rice & Sauce on side' },
   { item_number: 'D5', name: 'Steamed Chicken Slices', description: 'Tender sliced chicken breast steamed plain.', price_single: 14.95, category: 'Diet Menu', included: 'White Rice & Sauce on side' },
 
-  // ==================== COMBINATION PLATES ====================
+  // COMBINATION PLATES
   { item_number: 'CP1', name: 'Chicken Chow Mein Combo', description: 'Tender chicken with bean sprouts and vegetables.', price_single: 10.95, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
   { item_number: 'CP2', name: 'Shrimp w. Mixed Vegs Combo', description: 'Tender shrimp stir-fried with assorted vegetables.', price_single: 11.15, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
   { item_number: 'CP3', name: 'Pork or Chicken Egg Foo Young Combo', description: 'Fluffy egg omelette patties with pork or chicken.', price_single: 11.15, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
@@ -332,119 +412,74 @@ const menuItems = [
   { item_number: 'CP20', name: 'Triple Delight Combo', description: 'Shrimp, chicken, and pork with mixed vegetables.', price_single: 11.15, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
 ];
 
-// Insert all items
-const insertMany = db.transaction((items) => {
-  for (const item of items) {
-    insert.run({
-      item_number: item.item_number,
-      name: item.name,
-      description: item.description,
-      price_small: item.price_small || null,
-      price_large: item.price_large || null,
-      price_single: item.price_single || null,
-      included: item.included || null,
-      category: item.category,
-      is_spicy: item.is_spicy || 0,
-    });
-  }
-});
+// ---------------------------------------------------------------------------
+// Data Population
+// ---------------------------------------------------------------------------
 
-insertMany(menuItems);
+/**
+ * Populates the menu_items table with restaurant menu data.
+ */
+function populateMenuItems() {
+  // Clear existing data
+  db.exec('DELETE FROM menu_items');
 
-console.log(`Database created: fareast.db`);
-console.log(`Inserted ${menuItems.length} menu items`);
-
-
-// ==================== ORDERS TABLE ====================
-// Main order records with proper constraints and validation
-db.exec(`
-  CREATE TABLE IF NOT EXISTS orders (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_number    TEXT NOT NULL UNIQUE,
-    phone_number    TEXT NOT NULL,
-    status          TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled')),
-    order_type      TEXT DEFAULT 'pickup' CHECK (order_type IN ('pickup', 'delivery')),
-    total           REAL,
-    notes           TEXT DEFAULT '',
-    created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// Index for order lookups by order_number (unique, frequently queried)
-// Used by: UPDATE orders SET status = ? WHERE order_number = ?
-db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`);
-
-// Index for orders sorted/filtered by created_at (common dashboard query)
-// Used by: SELECT ... FROM orders ORDER BY created_at DESC
-db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`);
-
-// Index for filtering orders by status (dashboard filtering)
-// Used by: SELECT ... FROM orders WHERE status = ?
-db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
-
-// Composite index for daily order counting (order number generation)
-// Used by: SELECT COUNT(*) FROM orders WHERE DATE(created_at) = DATE(?)
-// Note: SQLite can't use functional indexes directly, but indexing created_at helps
-db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at_date ON orders(created_at)`);
-  
-// ==================== ORDER ITEMS TABLE ====================
-// Individual items within orders
-// Note: We check if table exists before creating to handle migrations
-
-// Check if order_items table exists
-const tableExists = db.prepare(`
-  SELECT name FROM sqlite_master
-  WHERE type='table' AND name='order_items'
-`).get();
-
-if (!tableExists) {
-  // Create new table with generated column for total
-  db.exec(`
-    CREATE TABLE order_items (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id        INTEGER NOT NULL,
-      menu_item_id    INTEGER,
-      item_name       TEXT NOT NULL,
-      quantity        INTEGER DEFAULT 1 CHECK (quantity > 0),
-      size            TEXT CHECK (size IS NULL OR size IN ('Pt', 'Qt', 'S', 'L', 'Combination')),
-      unit_price      REAL NOT NULL CHECK (unit_price >= 0),
-      total           REAL GENERATED ALWAYS AS (quantity * unit_price) STORED,
-      notes           TEXT DEFAULT '',
-      created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
-    )
+  // Prepare insert statement
+  const insert = db.prepare(`
+    INSERT INTO menu_items (item_number, name, description, price_small, price_large, price_single, included, category, is_spicy)
+    VALUES (@item_number, @name, @description, @price_small, @price_large, @price_single, @included, @category, @is_spicy)
   `);
-  console.log('Created order_items table with generated total column');
-} else {
-  // Table exists - check if we need to migrate
-  // For backward compatibility, we keep the existing table structure
-  // The total column will continue to be manually set in existing code
-  console.log('order_items table already exists - keeping existing structure');
 
-  // Ensure size column exists (migration from older schema)
-  try {
-    db.exec(`ALTER TABLE order_items ADD COLUMN size TEXT`);
-    console.log('Added size column to order_items');
-  } catch (e) {
-    // Column already exists, ignore
-  }
+  // Insert all items in a transaction for better performance
+  const insertMany = db.transaction((items) => {
+    for (const item of items) {
+      insert.run({
+        item_number: item.item_number,
+        name: item.name,
+        description: item.description,
+        price_small: item.price_small || null,
+        price_large: item.price_large || null,
+        price_single: item.price_single || null,
+        included: item.included || null,
+        category: item.category,
+        is_spicy: item.is_spicy || 0,
+      });
+    }
+  });
+
+  insertMany(menuItems);
+  console.log(`[DB] Inserted ${menuItems.length} menu items`);
 }
 
-// Index for order_id foreign key (critical for JOIN performance)
-// Used by: SELECT ... FROM order_items WHERE order_id = ?
-db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`);
+// ---------------------------------------------------------------------------
+// Main Execution
+// ---------------------------------------------------------------------------
 
-// Index for menu_item_id foreign key (optional, for analytics)
-db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_menu_item_id ON order_items(menu_item_id)`);
+/**
+ * Initializes the database with schema and data.
+ */
+function initializeDatabase() {
+  console.log(`[DB] Initializing database: ${config.database.path}`);
 
-console.log('Created/verified orders table with indexes');
-console.log('Created/verified order_items table with indexes');
-// Verify
-const count = db.prepare('SELECT COUNT(*) as count FROM menu_items').get();
-console.log(`Total items in database: ${count.count}`);
+  // Configure pragmas
+  configureDatabasePragmas();
 
+  // Create tables
+  createMenuItemsTable();
+  createOrdersTable();
+  createOrderItemsTable();
 
+  // Populate menu data
+  populateMenuItems();
 
-db.close();
+  // Verify
+  const count = db.prepare('SELECT COUNT(*) as count FROM menu_items').get();
+  console.log(`[DB] Total menu items in database: ${count.count}`);
+
+  console.log('[DB] Database initialization complete');
+
+  // Close the database connection
+  db.close();
+}
+
+// Run initialization
+initializeDatabase();

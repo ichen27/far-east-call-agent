@@ -1,68 +1,95 @@
 <script setup lang="ts">
+/**
+ * OrderDashboard Component
+ *
+ * A reusable dashboard component for displaying and managing orders.
+ * Uses composables for API calls, WebSocket communication, notifications, and formatting.
+ *
+ * Note: This component has similar functionality to App.vue but is designed
+ * to be used as a standalone component that can be embedded in other views.
+ */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useWebSocket, type Order as WSOrder, type ConnectionState } from '../Composables/useWebSocket'
+import {
+  useWebSocket,
+  useOrderApi,
+  useNotification,
+  useFormatters,
+  type WSOrder,
+  type ConnectionState,
+} from '../composables'
+import { type Order, type OrderStatus } from '../types'
 
-interface OrderItem {
-  name: string
-  quantity: number
-  size: string | null
-  modifications: string
-  price?: number
+// Props with defaults
+interface Props {
+  apiBaseUrl?: string
+  wsUrl?: string
+  pollIntervalMs?: number
+  maxReconnectAttempts?: number
 }
 
-interface Order {
-  orderNumber: string
-  items: OrderItem[]
-  phoneNumber: string
-  timeOrdered: Date
-  totalPrice: number
-  status: string
-}
+const props = withDefaults(defineProps<Props>(), {
+  apiBaseUrl: 'http://localhost:8080',
+  wsUrl: 'ws://localhost:8080',
+  pollIntervalMs: 5000,
+  maxReconnectAttempts: 10,
+})
 
-// Configure your backend URL
-const API_BASE_URL = 'http://localhost:8080'
-const WS_URL = 'ws://localhost:8080'
+// Emits for parent component communication
+const emit = defineEmits<{
+  (e: 'orderAdded', order: Order): void
+  (e: 'orderUpdated', order: Order): void
+  (e: 'statusChanged', orderNumber: string, status: OrderStatus): void
+  (e: 'error', error: string): void
+}>()
 
-// Polling configuration (fallback)
-const POLL_INTERVAL_MS = 5000 // 5 seconds when using fallback polling
+// Composables
+const { formatDateTime, formatPhone, formatCurrency, getTodayFormatted } = useFormatters()
+const { playNotification } = useNotification()
+const {
+  error: apiError,
+  fetchOrders: apiFetchOrders,
+  updateOrderStatus: apiUpdateStatus,
+  clearError,
+} = useOrderApi({ baseUrl: props.apiBaseUrl })
+
+const {
+  connectionState,
+  isConnected,
+  lastError: wsError,
+  reconnectAttempts,
+  connect,
+  disconnect,
+  onNewOrder,
+  onStateChange,
+  onError,
+} = useWebSocket({
+  url: props.wsUrl,
+  initialReconnectDelay: 1000,
+  maxReconnectDelay: 30000,
+  maxReconnectAttempts: props.maxReconnectAttempts,
+  heartbeatInterval: 30000,
+  heartbeatTimeout: 5000,
+  jitterFactor: 0.3,
+})
 
 // State
 const orders = ref<Order[]>([])
 const viewMode = ref<'current' | 'history'>('current')
 const lastKnownOrderNumbers = ref<Set<string>>(new Set())
 const usingPollingFallback = ref(false)
+const isInitialLoading = ref(true)
+const statusUpdateInProgress = ref<string | null>(null)
+
 let pollInterval: ReturnType<typeof setInterval> | null = null
 
-// WebSocket composable
-const {
-  connectionState,
-  isConnected,
-  lastError,
-  reconnectAttempts,
-  connect,
-  disconnect,
-  onNewOrder,
-  onStateChange,
-  onError
-} = useWebSocket({
-  url: WS_URL,
-  initialReconnectDelay: 1000,
-  maxReconnectDelay: 30000,
-  maxReconnectAttempts: 10, // After 10 attempts, fall back to polling
-  heartbeatInterval: 30000,
-  heartbeatTimeout: 5000,
-})
-
-// Computed property to filter orders based on view mode
+// Computed properties
 const filteredOrders = computed(() => {
   if (viewMode.value === 'current') {
     return orders.value.filter(order => order.status === 'pending')
-  } else {
-    return orders.value.filter(order => order.status === 'completed' || order.status === 'cancelled')
   }
+  return orders.value.filter(order => order.status === 'completed' || order.status === 'cancelled')
 })
 
-// Connection status display text
 const connectionStatusText = computed(() => {
   if (usingPollingFallback.value) {
     return 'Polling Mode'
@@ -81,12 +108,27 @@ const connectionStatusText = computed(() => {
   }
 })
 
-// Connection status class for styling
 const connectionStatusClass = computed(() => {
   if (usingPollingFallback.value) {
     return 'polling'
   }
   return connectionState.value
+})
+
+const todayDate = computed(() => getTodayFormatted())
+
+const hasError = computed(() => {
+  return !!(apiError.value || (wsError.value && !isConnected.value && !usingPollingFallback.value))
+})
+
+const errorMessage = computed(() => {
+  if (apiError.value) {
+    return apiError.value.message
+  }
+  if (wsError.value && !isConnected.value && !usingPollingFallback.value) {
+    return `Connection issue: ${wsError.value}`
+  }
+  return null
 })
 
 /**
@@ -95,64 +137,50 @@ const connectionStatusClass = computed(() => {
 function wsOrderToOrder(wsOrder: WSOrder): Order {
   return {
     orderNumber: wsOrder.orderNumber,
-    items: wsOrder.items,
+    items: wsOrder.items.map(item => ({ ...item, price: 0 })),
     phoneNumber: wsOrder.phoneNumber,
     timeOrdered: new Date(wsOrder.time),
     totalPrice: wsOrder.total,
-    status: wsOrder.status
+    status: wsOrder.status,
   }
 }
 
 /**
- * Fetch all orders via REST API (initial load + polling fallback)
+ * Fetch orders and detect new ones
  */
 async function fetchOrders(): Promise<void> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/orders`)
-    if (!response.ok) throw new Error('Failed to fetch orders')
+  const fetchedOrders = await apiFetchOrders()
 
-    const fetchedOrders = await response.json()
-
-    // Map the response to match Order interface
-    const mappedOrders: Order[] = fetchedOrders.map((order: any) => ({
-      orderNumber: order.orderNumber,
-      items: order.items,
-      phoneNumber: order.phoneNumber,
-      timeOrdered: new Date(order.time),
-      totalPrice: order.total,
-      status: order.status
-    }))
-
-    // Detect new orders (for notification/sound if you want)
-    const currentOrderNumbers = new Set(mappedOrders.map(o => o.orderNumber))
-    const newOrders = mappedOrders.filter(
-      o => !lastKnownOrderNumbers.value.has(o.orderNumber)
-    )
-
-    if (newOrders.length > 0 && lastKnownOrderNumbers.value.size > 0) {
-      console.log(`[OrderDashboard] ${newOrders.length} new order(s) detected via REST`)
-    }
-
-    // Update the orders list
-    orders.value = mappedOrders
-    lastKnownOrderNumbers.value = currentOrderNumbers
-
-  } catch (error) {
-    console.error('[OrderDashboard] Failed to fetch orders:', error)
+  if (fetchedOrders.length === 0 && apiError.value) {
+    emit('error', apiError.value.message)
+    return
   }
+
+  // Detect new orders for notification
+  const currentOrderNumbers = new Set(fetchedOrders.map(o => o.orderNumber))
+  const newOrders = fetchedOrders.filter(
+    o => !lastKnownOrderNumbers.value.has(o.orderNumber)
+  )
+
+  if (newOrders.length > 0 && lastKnownOrderNumbers.value.size > 0) {
+    console.log(`[OrderDashboard] ${newOrders.length} new order(s) detected via REST`)
+    playNotification()
+    newOrders.forEach(order => emit('orderAdded', order))
+  }
+
+  orders.value = fetchedOrders
+  lastKnownOrderNumbers.value = currentOrderNumbers
 }
 
 /**
- * Start polling fallback (when WebSocket fails)
+ * Start polling fallback when WebSocket fails
  */
 function startPollingFallback(): void {
-  if (pollInterval) return // Already polling
+  if (pollInterval) return
 
   usingPollingFallback.value = true
   console.log('[OrderDashboard] Starting polling fallback')
-
-  // Poll every N seconds
-  pollInterval = setInterval(fetchOrders, POLL_INTERVAL_MS)
+  pollInterval = setInterval(fetchOrders, props.pollIntervalMs)
 }
 
 /**
@@ -172,22 +200,18 @@ function stopPollingFallback(): void {
  */
 function handleNewOrder(wsOrder: WSOrder): void {
   const order = wsOrderToOrder(wsOrder)
-
-  // Check if order already exists (update it) or add new
   const existingIndex = orders.value.findIndex(o => o.orderNumber === order.orderNumber)
 
   if (existingIndex >= 0) {
-    // Update existing order
     orders.value[existingIndex] = order
     console.log(`[OrderDashboard] Updated order: ${order.orderNumber}`)
+    emit('orderUpdated', order)
   } else {
-    // Add new order at the beginning
     orders.value.unshift(order)
     lastKnownOrderNumbers.value.add(order.orderNumber)
     console.log(`[OrderDashboard] New order added: ${order.orderNumber}`)
-
-    // Optional: Play notification sound or show toast
-    playOrderNotification()
+    playNotification()
+    emit('orderAdded', order)
   }
 }
 
@@ -198,10 +222,9 @@ function handleStateChange(state: ConnectionState): void {
   console.log(`[OrderDashboard] Connection state: ${state}`)
 
   if (state === 'connected') {
-    // WebSocket connected - stop polling if active
     stopPollingFallback()
-  } else if (state === 'disconnected' && reconnectAttempts.value >= 10) {
-    // Max reconnection attempts reached - fall back to polling
+    clearError()
+  } else if (state === 'disconnected' && reconnectAttempts.value >= props.maxReconnectAttempts) {
     startPollingFallback()
   }
 }
@@ -211,92 +234,7 @@ function handleStateChange(state: ConnectionState): void {
  */
 function handleError(error: string): void {
   console.error(`[OrderDashboard] WebSocket error: ${error}`)
-}
-
-/**
- * Play a notification sound for new orders
- */
-function playOrderNotification(): void {
-  try {
-    // Create a simple beep using Web Audio API
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-
-    oscillator.frequency.value = 800
-    oscillator.type = 'sine'
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.3)
-  } catch (e) {
-    // Audio not supported or blocked
-    console.log('[OrderDashboard] Could not play notification sound')
-  }
-}
-
-/**
- * Update order status via REST API
- */
-async function updateOrderStatus(order: Order, newStatus: string): Promise<void> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/orders/${order.orderNumber}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
-    })
-
-    if (response.ok) {
-      order.status = newStatus
-      console.log(`[OrderDashboard] Updated order ${order.orderNumber} status to ${newStatus}`)
-    }
-  } catch (error) {
-    console.error('[OrderDashboard] Failed to update order status:', error)
-  }
-}
-
-/**
- * Format date for display
- */
-function formatDate(date: Date): [string, string] {
-  const d = new Date(date)
-  const dateStr = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
-  const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  return [dateStr, timeStr]
-}
-
-/**
- * Get today's date formatted
- */
-const todayDate = computed(() => {
-  return new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric'
-  })
-})
-
-/**
- * Format phone number for display
- */
-function formatPhone(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  if (cleaned.length === 10) {
-    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-  }
-  return phone
-}
-
-/**
- * Format currency for display
- */
-function formatCurrency(amount: number): string {
-  return `$${amount.toFixed(2)}`
+  emit('error', error)
 }
 
 /**
@@ -304,20 +242,49 @@ function formatCurrency(amount: number): string {
  */
 function retryConnection(): void {
   stopPollingFallback()
+  clearError()
   connect()
+}
+
+/**
+ * Update order status with optimistic UI update
+ */
+async function updateOrderStatus(order: Order, newStatus: OrderStatus): Promise<void> {
+  const previousStatus = order.status
+  statusUpdateInProgress.value = order.orderNumber
+
+  // Optimistic update
+  order.status = newStatus
+
+  const success = await apiUpdateStatus(order.orderNumber, newStatus)
+
+  if (success) {
+    emit('statusChanged', order.orderNumber, newStatus)
+  } else {
+    // Revert on failure
+    order.status = previousStatus
+    console.error(`[OrderDashboard] Failed to update order ${order.orderNumber} status`)
+  }
+
+  statusUpdateInProgress.value = null
+}
+
+/**
+ * Format date for display (wrapper for template)
+ */
+function formatDate(date: Date): [string, string] {
+  return formatDateTime(date)
 }
 
 // Lifecycle hooks
 onMounted(async () => {
-  // Initial load via REST API
   await fetchOrders()
+  isInitialLoading.value = false
 
-  // Set up WebSocket event handlers
   onNewOrder(handleNewOrder)
   onStateChange(handleStateChange)
   onError(handleError)
 
-  // Connect to WebSocket
   connect()
 })
 
@@ -328,10 +295,19 @@ onUnmounted(() => {
 
 // Watch for reconnection attempts to trigger fallback
 watch(reconnectAttempts, (attempts) => {
-  if (attempts >= 10 && !usingPollingFallback.value) {
+  if (attempts >= props.maxReconnectAttempts && !usingPollingFallback.value) {
     console.log('[OrderDashboard] Max reconnection attempts reached, switching to polling')
     startPollingFallback()
   }
+})
+
+// Expose methods for parent component use
+defineExpose({
+  fetchOrders,
+  retryConnection,
+  orders,
+  isConnected,
+  connectionState,
 })
 </script>
 
@@ -357,6 +333,9 @@ watch(reconnectAttempts, (attempts) => {
             @click="viewMode = 'current'"
           >
             Current Orders
+            <span v-if="viewMode === 'current' && filteredOrders.length > 0" class="count-badge">
+              {{ filteredOrders.length }}
+            </span>
           </button>
           <button
             :class="{ active: viewMode === 'history' }"
@@ -369,15 +348,23 @@ watch(reconnectAttempts, (attempts) => {
     </div>
 
     <!-- Error Banner -->
-    <div v-if="lastError && !isConnected && !usingPollingFallback" class="error-banner">
-      Connection issue: {{ lastError }}
+    <div v-if="hasError" class="error-banner">
+      {{ errorMessage }}
+      <button v-if="apiError" class="dismiss-btn" @click="clearError">Dismiss</button>
     </div>
 
-    <div class="orders-container">
+    <!-- Loading State -->
+    <div v-if="isInitialLoading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>Loading orders...</p>
+    </div>
+
+    <div v-else class="orders-container">
       <div
         v-for="order in filteredOrders"
         :key="order.orderNumber"
         class="order-ticket"
+        :class="{ 'updating': statusUpdateInProgress === order.orderNumber }"
       >
         <!-- Order Number -->
         <div class="ticket-section order-number">
@@ -445,7 +432,8 @@ watch(reconnectAttempts, (attempts) => {
             class="status-dropdown"
             :class="order.status"
             :value="order.status"
-            @change="updateOrderStatus(order, ($event.target as HTMLSelectElement).value)"
+            :disabled="statusUpdateInProgress === order.orderNumber"
+            @change="updateOrderStatus(order, ($event.target as HTMLSelectElement).value as OrderStatus)"
           >
             <option value="pending">In Progress</option>
             <option value="completed">Completed</option>
@@ -560,6 +548,7 @@ h1 .date {
   font-size: 12px;
   cursor: pointer;
   color: inherit;
+  transition: background 0.2s ease;
 }
 
 .retry-btn:hover {
@@ -572,6 +561,9 @@ h1 .date {
 }
 
 .view-toggle button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 20px;
   border: 2px solid #e0e0e0;
   background: white;
@@ -594,6 +586,18 @@ h1 .date {
   color: white;
 }
 
+.count-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.view-toggle button:not(.active) .count-badge {
+  background: #2563eb;
+  color: white;
+}
+
 .error-banner {
   width: 1280px;
   margin: 0 auto 16px auto;
@@ -602,6 +606,56 @@ h1 .date {
   border: 1px solid #fecaca;
   border-radius: 8px;
   color: #991b1b;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dismiss-btn {
+  padding: 4px 12px;
+  border: 1px solid #991b1b;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #991b1b;
+  transition: background 0.2s ease;
+}
+
+.dismiss-btn:hover {
+  background: rgba(153, 27, 27, 0.1);
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  width: 1280px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-container p {
+  margin-top: 16px;
+  color: #666;
   font-size: 14px;
 }
 
@@ -650,6 +704,12 @@ h1 .date {
   padding: 16px 0;
   gap: 0;
   animation: slideIn 0.3s ease-out;
+  transition: opacity 0.2s ease;
+}
+
+.order-ticket.updating {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 @keyframes slideIn {
@@ -819,6 +879,12 @@ h1 .date {
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 28px;
+  transition: opacity 0.2s ease;
+}
+
+.status-dropdown:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .status-dropdown.pending {
@@ -836,7 +902,7 @@ h1 .date {
   color: #991b1b;
 }
 
-.status-dropdown:hover {
+.status-dropdown:hover:not(:disabled) {
   opacity: 0.9;
 }
 

@@ -8,7 +8,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeDatabase } from '../lib/db';
+import { initializeDatabase } from '../lib/db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST

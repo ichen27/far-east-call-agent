@@ -6,7 +6,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createOrder, getAllOrders, getOrdersSince, type NewOrder } from '../../lib/db';
+import { createOrder, getAllOrders, getOrdersSince, type NewOrder } from '../../lib/db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS for agent backend

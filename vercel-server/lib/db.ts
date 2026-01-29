@@ -5,7 +5,15 @@
  * Uses Vercel's @vercel/postgres for serverless-compatible connections.
  */
 
-import { sql } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
+
+// Create pool with custom env var name (Neon uses FAR_EAST_ prefix)
+const pool = createPool({
+  connectionString: process.env.FAR_EAST_POSTGRES_URL || process.env.POSTGRES_URL,
+});
+
+// Helper to run SQL queries
+const sql = pool.sql.bind(pool);
 
 // ============================================================================
 // Types

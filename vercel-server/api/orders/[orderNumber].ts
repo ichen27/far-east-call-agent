@@ -6,7 +6,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getOrderByNumber, updateOrderStatus, type OrderStatus } from '../../lib/db';
+import { getOrderByNumber, updateOrderStatus, type OrderStatus } from '../../lib/db.js';
 
 const VALID_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
 

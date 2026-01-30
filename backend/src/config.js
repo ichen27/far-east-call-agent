@@ -151,6 +151,18 @@ export const restaurant = {
 };
 
 /**
+ * SMS notification configuration.
+ * @constant {Object}
+ */
+export const sms = {
+  /** Twilio phone number to send SMS from */
+  fromNumber: process.env.TWILIO_PHONE_NUMBER || '',
+
+  /** Whether SMS confirmations are enabled */
+  enabled: process.env.SMS_ENABLED === 'true' || !!process.env.TWILIO_PHONE_NUMBER,
+};
+
+/**
  * Full configuration object for convenience.
  * @constant {Object}
  */
@@ -162,6 +174,7 @@ const config = {
   voiceAgent,
   database,
   restaurant,
+  sms,
 };
 
 export default config;

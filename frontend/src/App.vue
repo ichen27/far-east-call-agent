@@ -244,6 +244,97 @@ function formatDate(date: Date): [string, string] {
   return formatDateTime(date)
 }
 
+/**
+ * Print order ticket for kitchen (FAREAST-34)
+ * Uses an iframe for secure printing without document.write
+ */
+function printOrder(order: Order): void {
+  // Create a hidden iframe for printing
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'absolute'
+  iframe.style.top = '-10000px'
+  iframe.style.left = '-10000px'
+  document.body.appendChild(iframe)
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!iframeDoc) {
+    console.error('[Print] Failed to access iframe document')
+    document.body.removeChild(iframe)
+    return
+  }
+
+  // Build items list safely
+  const itemsList = order.items.map(item => {
+    const mods = item.modifications ? `<br><span class="mods">${escapeHtml(item.modifications)}</span>` : ''
+    const size = item.size ? ` (${escapeHtml(item.size)})` : ''
+    return `<tr><td class="qty">${item.quantity}</td><td class="name">${escapeHtml(item.name)}${size}${mods}</td></tr>`
+  }).join('')
+
+  const notes = order.notes ? `<div class="notes">Notes: ${escapeHtml(order.notes)}</div>` : ''
+
+  // Create print document
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Order #${escapeHtml(order.orderNumber)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; width: 80mm; padding: 10px; font-size: 12px; }
+    .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+    .restaurant-name { font-size: 16px; font-weight: bold; }
+    .order-number { font-size: 24px; font-weight: bold; margin: 10px 0; }
+    .order-time { font-size: 11px; color: #333; }
+    .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    .items-table td { padding: 5px 2px; vertical-align: top; border-bottom: 1px dotted #ccc; }
+    .items-table .qty { width: 30px; font-weight: bold; text-align: center; }
+    .items-table .name { font-weight: bold; }
+    .items-table .mods { font-weight: normal; font-size: 10px; font-style: italic; }
+    .footer { border-top: 2px dashed #000; padding-top: 10px; margin-top: 10px; }
+    .phone { margin-bottom: 5px; }
+    .total { font-size: 18px; font-weight: bold; text-align: right; }
+    .notes { margin-top: 10px; padding: 5px; border: 1px solid #000; font-style: italic; }
+    @media print { body { width: auto; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="restaurant-name">FAR EAST KITCHEN</div>
+    <div class="order-number">#${escapeHtml(order.orderNumber)}</div>
+    <div class="order-time">${formatDate(order.timeOrdered)[0]} ${formatDate(order.timeOrdered)[1]}</div>
+  </div>
+  <table class="items-table">${itemsList}</table>
+  <div class="footer">
+    <div class="phone">Phone: ${formatPhone(order.phoneNumber)}</div>
+    <div class="total">TOTAL: ${formatCurrency(order.totalPrice)}</div>
+  </div>
+  ${notes}
+</body>
+</html>`
+
+  iframeDoc.open()
+  iframeDoc.write(html)
+  iframeDoc.close()
+
+  // Wait for content to load then print
+  iframe.onload = () => {
+    iframe.contentWindow?.print()
+    // Clean up after print dialog closes
+    setTimeout(() => {
+      document.body.removeChild(iframe)
+    }, 1000)
+  }
+}
+
+/**
+ * Escape HTML entities to prevent XSS
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   // Initial load via REST API
@@ -418,7 +509,18 @@ watch(reconnectAttempts, (attempts) => {
                 </div>
               </div>
 
-              <div class="status-control">
+              <div class="order-actions">
+                <button
+                  class="print-btn"
+                  @click="printOrder(order)"
+                  title="Print order ticket"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                </button>
                 <select
                   class="status-dropdown"
                   :class="order.status"
@@ -1018,9 +1120,37 @@ watch(reconnectAttempts, (attempts) => {
   font-family: var(--font-mono);
 }
 
-/* Status Control */
-.status-control {
+/* Order Actions */
+.order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+/* Print Button (FAREAST-34) */
+.print-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.print-btn:hover {
+  background: var(--color-bg-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.print-btn:active {
+  transform: scale(0.95);
 }
 
 .status-dropdown {
@@ -1175,7 +1305,7 @@ watch(reconnectAttempts, (attempts) => {
     align-items: stretch;
   }
 
-  .status-control {
+  .order-actions {
     width: 100%;
   }
 
@@ -1201,7 +1331,7 @@ watch(reconnectAttempts, (attempts) => {
    ============================================ */
 @media print {
   .header-controls,
-  .status-control {
+  .order-actions {
     display: none;
   }
 

@@ -133,6 +133,9 @@ function createSubmitOrderTool(getCallSid) {
 
         await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
 
+        // Send SMS confirmation to customer (FAREAST-19)
+        await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice);
+
         return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}`;
       } catch (error) {
         console.error('[Voice] Failed to save order:', error);
@@ -411,6 +414,65 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
  */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Sends SMS order confirmation to customer (FAREAST-19).
+ *
+ * @param {string} phoneNumber - Customer phone number
+ * @param {string} orderNumber - Order number
+ * @param {Array} items - Array of order items
+ * @param {number} totalPrice - Total price including tax
+ * @returns {Promise<void>}
+ */
+async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice) {
+  // Skip if SMS not configured
+  if (!config.sms.enabled || !config.sms.fromNumber) {
+    console.log('[SMS] SMS notifications disabled (TWILIO_PHONE_NUMBER not set)');
+    return;
+  }
+
+  // Format phone number for Twilio (add +1 for US if needed)
+  let formattedPhone = phoneNumber.replace(/\D/g, '');
+  if (formattedPhone.length === 10) {
+    formattedPhone = `+1${formattedPhone}`;
+  } else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) {
+    formattedPhone = `+${formattedPhone}`;
+  } else {
+    formattedPhone = `+${formattedPhone}`;
+  }
+
+  // Build item list for SMS
+  const itemList = items
+    .map((item) => `• ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`)
+    .slice(0, 5) // Limit to 5 items to keep SMS short
+    .join('\n');
+  const moreItems = items.length > 5 ? `\n...and ${items.length - 5} more items` : '';
+
+  const message = `🍜 Far East Kitchen - Order Confirmed!
+
+Order #${orderNumber}
+${itemList}${moreItems}
+
+Total: $${totalPrice.toFixed(2)}
+Pickup: ${config.restaurant.estimatedPickupTime}
+
+📍 ${config.restaurant.address}
+📞 ${config.restaurant.phone}
+
+Thank you for your order!`;
+
+  try {
+    await twilioClient.messages.create({
+      body: message,
+      from: config.sms.fromNumber,
+      to: formattedPhone,
+    });
+    console.log(`[SMS] Confirmation sent to ${formattedPhone} for order ${orderNumber}`);
+  } catch (error) {
+    console.error(`[SMS] Failed to send confirmation:`, error.message);
+    // Don't throw - SMS failure shouldn't block order
+  }
 }
 
 // ---------------------------------------------------------------------------

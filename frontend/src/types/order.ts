@@ -43,6 +43,7 @@ export interface Order {
   timeOrdered: Date
   totalPrice: number
   status: OrderStatus
+  notes?: string
 }
 
 /**
@@ -63,5 +64,6 @@ export function apiOrderToOrder(apiOrder: ApiOrder): Order {
     timeOrdered: new Date(apiOrder.time),
     totalPrice: apiOrder.total,
     status: apiOrder.status,
+    notes: apiOrder.notes,
   }
 }

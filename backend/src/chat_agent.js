@@ -11,11 +11,17 @@ import express from 'express';
 import { createServer } from 'http';
 import { Agent, run, tool } from '@openai/agents';
 
+import Twilio from 'twilio';
 import { createOrderAtomic } from './database.js';
 import { CHAT_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
 import orderBroadcaster from './orderBroadcaster.js';
 import config from './config.js';
+
+// Twilio client for SMS (only initialized if credentials exist)
+const twilioClient = config.credentials.twilioAccountSid && config.credentials.twilioAuthToken
+  ? Twilio(config.credentials.twilioAccountSid, config.credentials.twilioAuthToken)
+  : null;
 
 // ---------------------------------------------------------------------------
 // Session Management
@@ -72,6 +78,9 @@ const submitOrder = tool({
 
       // Broadcast order to frontend dashboard (same as voice agent)
       await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
+
+      // Send SMS confirmation (FAREAST-19)
+      await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice);
 
       return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. Ready for pickup in ${config.restaurant.estimatedPickupTime}.`;
     } catch (error) {
@@ -286,6 +295,63 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
     createdAt: new Date().toISOString(),
     source: 'chat', // Distinguish chat orders from voice orders
   });
+}
+
+/**
+ * Sends SMS order confirmation to customer (FAREAST-19).
+ *
+ * @param {string} phoneNumber - Customer phone number
+ * @param {string} orderNumber - Order number
+ * @param {Array} items - Array of order items
+ * @param {number} totalPrice - Total price including tax
+ * @returns {Promise<void>}
+ */
+async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice) {
+  // Skip if SMS not configured
+  if (!twilioClient || !config.sms?.enabled || !config.sms?.fromNumber) {
+    console.log('[Chat SMS] SMS notifications disabled');
+    return;
+  }
+
+  // Format phone number for Twilio
+  let formattedPhone = phoneNumber.replace(/\D/g, '');
+  if (formattedPhone.length === 10) {
+    formattedPhone = `+1${formattedPhone}`;
+  } else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) {
+    formattedPhone = `+${formattedPhone}`;
+  } else {
+    formattedPhone = `+${formattedPhone}`;
+  }
+
+  const itemList = items
+    .map((item) => `• ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`)
+    .slice(0, 5)
+    .join('\n');
+  const moreItems = items.length > 5 ? `\n...and ${items.length - 5} more items` : '';
+
+  const message = `🍜 Far East Kitchen - Order Confirmed!
+
+Order #${orderNumber}
+${itemList}${moreItems}
+
+Total: $${totalPrice.toFixed(2)}
+Pickup: ${config.restaurant.estimatedPickupTime}
+
+📍 ${config.restaurant.address}
+📞 ${config.restaurant.phone}
+
+Thank you for your order!`;
+
+  try {
+    await twilioClient.messages.create({
+      body: message,
+      from: config.sms.fromNumber,
+      to: formattedPhone,
+    });
+    console.log(`[Chat SMS] Confirmation sent to ${formattedPhone} for order ${orderNumber}`);
+  } catch (error) {
+    console.error(`[Chat SMS] Failed to send confirmation:`, error.message);
+  }
 }
 
 /**

@@ -111,6 +111,15 @@ export const chatAgent = {
 export const voiceAgent = {
   /** Delay before hanging up after agent requests (milliseconds) */
   hangUpDelay: parseInt(process.env.HANGUP_DELAY, 10) || 5000,
+
+  /** Maximum call duration in milliseconds (default: 10 minutes) */
+  maxCallDuration: parseInt(process.env.MAX_CALL_DURATION, 10) || 10 * 60 * 1000,
+
+  /** Warning time before call ends in milliseconds (default: 1 minute before max) */
+  callTimeoutWarning: parseInt(process.env.CALL_TIMEOUT_WARNING, 10) || 9 * 60 * 1000,
+
+  /** Idle timeout - end call if no activity for this duration (default: 2 minutes) */
+  idleTimeout: parseInt(process.env.IDLE_TIMEOUT, 10) || 2 * 60 * 1000,
 };
 
 /**

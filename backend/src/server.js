@@ -195,31 +195,49 @@ function createHangUpTool(getCallSid) {
 /**
  * Handles new WebSocket connections from Twilio.
  * Sets up the AI agent, transport layer, and session management.
+ * Includes call duration limits and idle detection (FAREAST-22).
  */
 wss.on('connection', (twilioWs) => {
   let callSid = null;
   const connectionTime = Date.now();
+  let lastActivityTime = Date.now();
+  let warningTimer = null;
+  let maxDurationTimer = null;
+  let idleCheckInterval = null;
 
   console.log(`[Voice] New Twilio connection. Active calls: ${activeCalls.size}`);
 
+  // Clean up timers when call ends
+  function cleanupTimers() {
+    if (warningTimer) clearTimeout(warningTimer);
+    if (maxDurationTimer) clearTimeout(maxDurationTimer);
+    if (idleCheckInterval) clearInterval(idleCheckInterval);
+  }
+
   // Handle connection close
   twilioWs.on('close', () => {
+    cleanupTimers();
     if (callSid) {
       activeCalls.delete(callSid);
-      console.log(`[Voice] Call ${callSid} ended. Active calls: ${activeCalls.size}`);
+      const duration = Math.round((Date.now() - connectionTime) / 1000);
+      console.log(`[Voice] Call ${callSid} ended after ${duration}s. Active calls: ${activeCalls.size}`);
     }
   });
 
   // Handle connection errors
   twilioWs.on('error', (error) => {
+    cleanupTimers();
     console.error(`[Voice] WebSocket error for call ${callSid}:`, error.message);
     if (callSid) {
       activeCalls.delete(callSid);
     }
   });
 
-  // Listen for Twilio stream start to capture callSid
+  // Listen for Twilio stream events
   twilioWs.on('message', (data) => {
+    // Update activity timestamp for idle detection
+    lastActivityTime = Date.now();
+
     try {
       const msg = JSON.parse(data);
       if (msg.event === 'start' && msg.start?.customParameters?.callSid) {
@@ -229,6 +247,10 @@ wss.on('connection', (twilioWs) => {
           status: 'active',
         });
         console.log(`[Voice] Call started: ${callSid}. Active calls: ${activeCalls.size}`);
+      }
+      // Track media events as activity
+      if (msg.event === 'media') {
+        lastActivityTime = Date.now();
       }
     } catch {
       // Ignore parse errors for non-JSON messages
@@ -255,23 +277,74 @@ wss.on('connection', (twilioWs) => {
     twilioWebSocket: twilioWs,
   });
 
-  const session = new RealtimeSession(agent, { transport });
+  const realtimeSession = new RealtimeSession(agent, { transport });
 
-  session.on('error', (error) => {
+  realtimeSession.on('error', (error) => {
     console.log('[Voice] Session error (caller may have hung up):', error.type || error);
   });
 
   // Connect to OpenAI and initiate conversation
-  session
+  realtimeSession
     .connect({ apiKey: config.credentials.openaiApiKey })
     .then(() => {
       console.log('[Voice] Connected to OpenAI!');
 
       // Send initial message to trigger AI greeting
-      session.sendMessage({
+      realtimeSession.sendMessage({
         role: 'user',
         content: [{ type: 'input_text', text: 'Hello' }],
       });
+
+      // Set up call duration warning timer (FAREAST-22)
+      warningTimer = setTimeout(() => {
+        console.log(`[Voice] Call ${callSid} approaching time limit, sending warning`);
+        realtimeSession.sendMessage({
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: '[SYSTEM: The call has been going on for a while. Please wrap up the order efficiently. If the customer has finished ordering, confirm the order and get their phone number now.]'
+          }],
+        });
+      }, config.voiceAgent.callTimeoutWarning);
+
+      // Set up maximum call duration timer (FAREAST-22)
+      maxDurationTimer = setTimeout(async () => {
+        console.log(`[Voice] Call ${callSid} reached maximum duration (${config.voiceAgent.maxCallDuration / 1000}s), ending call`);
+        realtimeSession.sendMessage({
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: '[SYSTEM: Maximum call time reached. Please thank the customer, apologize for the time, and end the call now. If they have an order, submit it first.]'
+          }],
+        });
+        // Give agent time to respond before force-ending
+        await sleep(15000);
+        if (callSid) {
+          try {
+            await twilioClient.calls(callSid).update({ status: 'completed' });
+            console.log(`[Voice] Call ${callSid} force-ended due to timeout`);
+          } catch (err) {
+            console.error(`[Voice] Failed to end timed-out call:`, err.message);
+          }
+        }
+      }, config.voiceAgent.maxCallDuration);
+
+      // Set up idle detection interval (FAREAST-22)
+      idleCheckInterval = setInterval(async () => {
+        const idleTime = Date.now() - lastActivityTime;
+        if (idleTime > config.voiceAgent.idleTimeout) {
+          console.log(`[Voice] Call ${callSid} idle for ${Math.round(idleTime / 1000)}s, prompting customer`);
+          realtimeSession.sendMessage({
+            role: 'user',
+            content: [{
+              type: 'input_text',
+              text: '[SYSTEM: The customer has been quiet for a while. Ask if they are still there and if they need help completing their order.]'
+            }],
+          });
+          // Reset to avoid repeated prompts
+          lastActivityTime = Date.now();
+        }
+      }, 30000); // Check every 30 seconds
     })
     .catch((err) => console.error('[Voice] OpenAI connection failed:', err));
 });

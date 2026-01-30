@@ -14,6 +14,7 @@ import { Agent, run, tool } from '@openai/agents';
 import { createOrderAtomic } from './database.js';
 import { CHAT_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
+import orderBroadcaster from './orderBroadcaster.js';
 import config from './config.js';
 
 // ---------------------------------------------------------------------------
@@ -68,6 +69,9 @@ const submitOrder = tool({
       });
 
       logOrderSubmission(orderNumber, phoneNumber, items, totalPrice);
+
+      // Broadcast order to frontend dashboard (same as voice agent)
+      await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
 
       return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. Ready for pickup in ${config.restaurant.estimatedPickupTime}.`;
     } catch (error) {
@@ -254,6 +258,34 @@ function extractResponseText(result) {
   }
 
   return responseText;
+}
+
+/**
+ * Broadcasts a new order to all connected frontend clients.
+ *
+ * @param {string} orderNumber - Generated order number
+ * @param {string} phoneNumber - Customer phone number
+ * @param {Array} items - Array of order items
+ * @param {string} notes - Order notes
+ * @param {number} totalPrice - Total price
+ */
+async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice) {
+  await orderBroadcaster.broadcastOrder({
+    orderNumber,
+    phoneNumber,
+    items: items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      size: item.size === 'N/A' ? null : item.size,
+      price: item.price,
+      modifications: item.modifications || '',
+    })),
+    notes: notes || '',
+    totalPrice,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    source: 'chat', // Distinguish chat orders from voice orders
+  });
 }
 
 /**

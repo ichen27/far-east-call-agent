@@ -8,7 +8,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getOrderByNumber, updateOrderStatus, type OrderStatus } from '../../lib/db.js';
 
-const VALID_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+const VALID_STATUSES: OrderStatus[] = ['pending', 'completed', 'cancelled'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS

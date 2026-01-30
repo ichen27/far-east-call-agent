@@ -1,12 +1,22 @@
 /**
  * API Route: /api/orders
  *
- * GET  - Fetch all orders (with optional ?since= parameter for polling)
+ * GET  - Fetch orders
+ *        ?view=pending  -> Current orders (pending only)
+ *        ?view=history  -> History (completed, cancelled)
+ *        (no param)     -> All orders
  * POST - Create a new order (called by AWS agent backend)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createOrder, getAllOrders, getOrdersSince, type NewOrder } from '../../lib/db.js';
+import {
+  createOrder,
+  getAllOrders,
+  getPendingOrders,
+  getHistoryOrders,
+  completeOldOrders,
+  type NewOrder,
+} from '../../lib/db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS for agent backend
@@ -20,20 +30,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'GET') {
-      // GET /api/orders - Fetch all orders
-      // Optional: ?since=ISO_TIMESTAMP to get only new orders (for efficient polling)
-      const { since } = req.query;
+      // Auto-complete old orders on each request (lightweight operation)
+      await completeOldOrders();
+
+      const { view } = req.query;
 
       let orders;
-      if (since && typeof since === 'string') {
-        orders = await getOrdersSince(since);
+      if (view === 'pending') {
+        // Current orders - pending only
+        orders = await getPendingOrders();
+      } else if (view === 'history') {
+        // History - completed and cancelled
+        orders = await getHistoryOrders();
       } else {
+        // All orders
         orders = await getAllOrders();
       }
 
       return res.status(200).json({
         success: true,
         orders,
+        view: view || 'all',
         timestamp: new Date().toISOString(),
       });
     }
@@ -51,26 +68,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      if (typeof body.total !== 'number' || body.total < 0) {
+      if (typeof body.subtotal !== 'number' || body.subtotal < 0) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid total price',
+          error: 'Invalid subtotal price',
         });
       }
 
       // Validate each item
       for (const item of body.items) {
-        if (!item.name || typeof item.quantity !== 'number' || typeof item.price !== 'number') {
+        if (!item.menuItemId || typeof item.quantity !== 'number') {
           return res.status(400).json({
             success: false,
-            error: 'Invalid item: each item must have name, quantity, and price',
+            error: 'Invalid item: each item must have menuItemId and quantity',
           });
         }
       }
 
       const order = await createOrder(body);
 
-      console.log(`[API] New order created: #${order.orderNumber}`);
+      console.log(`[API] New order created: #${order.orderNumber} - Total: $${order.total}`);
 
       return res.status(201).json({
         success: true,

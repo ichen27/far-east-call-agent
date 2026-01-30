@@ -5,22 +5,24 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 // Types
 // ============================================================================
 
-type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled'
+type OrderStatus = 'pending' | 'completed' | 'cancelled'
 
 interface OrderItem {
-  id?: number
-  name: string
+  orderItemId?: number
+  menuItemId: string
+  menuItemName?: string
   quantity: number
   size: string | null
-  unitPrice: number
   modifications: string
 }
 
 interface Order {
-  id?: number
+  orderId?: number
   orderNumber: string
   phoneNumber: string
   status: OrderStatus
+  subtotal: number
+  tax: number
   total: number
   notes: string
   createdAt?: string
@@ -32,6 +34,7 @@ interface ApiResponse {
   success: boolean
   orders?: Order[]
   order?: Order
+  view?: string
   timestamp?: string
   error?: string
 }
@@ -52,7 +55,6 @@ const orders = ref<Order[]>([])
 const viewMode = ref<'current' | 'history'>('current')
 const isLoading = ref(true)
 const error = ref<string | null>(null)
-const lastPollTimestamp = ref<string | null>(null)
 const statusUpdateInProgress = ref<string | null>(null)
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
@@ -60,13 +62,6 @@ let pollInterval: ReturnType<typeof setInterval> | null = null
 // ============================================================================
 // Computed Properties
 // ============================================================================
-
-const filteredOrders = computed(() => {
-  if (viewMode.value === 'current') {
-    return orders.value.filter(order => order.status === 'pending')
-  }
-  return orders.value.filter(order => order.status === 'completed' || order.status === 'cancelled')
-})
 
 const currentOrderCount = computed(() => {
   return orders.value.filter(o => o.status === 'pending').length
@@ -119,14 +114,15 @@ function formatCurrency(amount: number): string {
 // API Functions
 // ============================================================================
 
-async function fetchAllOrders(): Promise<void> {
+async function fetchOrders(): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/orders`)
+    // Use view parameter to fetch pending or history orders
+    const view = viewMode.value === 'current' ? 'pending' : 'history'
+    const response = await fetch(`${API_BASE_URL}/api/orders?view=${view}`)
     const data: ApiResponse = await response.json()
 
     if (data.success && data.orders) {
       orders.value = data.orders
-      lastPollTimestamp.value = data.timestamp || new Date().toISOString()
       error.value = null
     } else {
       throw new Error(data.error || 'Failed to fetch orders')
@@ -134,39 +130,6 @@ async function fetchAllOrders(): Promise<void> {
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to fetch orders'
     console.error('[App] Fetch error:', err)
-  }
-}
-
-async function fetchNewOrders(): Promise<void> {
-  if (!lastPollTimestamp.value) {
-    return fetchAllOrders()
-  }
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/orders?since=${encodeURIComponent(lastPollTimestamp.value)}`
-    )
-    const data: ApiResponse = await response.json()
-
-    if (data.success && data.orders) {
-      // Add new orders to the list
-      if (data.orders.length > 0) {
-        for (const newOrder of data.orders) {
-          const existingIndex = orders.value.findIndex(o => o.orderNumber === newOrder.orderNumber)
-          if (existingIndex >= 0) {
-            orders.value[existingIndex] = newOrder
-          } else {
-            orders.value.unshift(newOrder)
-            playNotification()
-          }
-        }
-      }
-      lastPollTimestamp.value = data.timestamp || new Date().toISOString()
-      error.value = null
-    }
-  } catch (err) {
-    console.error('[App] Poll error:', err)
-    // Don't show error for polling failures, just log
   }
 }
 
@@ -183,9 +146,15 @@ async function updateOrderStatus(orderNumber: string, newStatus: OrderStatus): P
     const data: ApiResponse = await response.json()
 
     if (data.success && data.order) {
-      const index = orders.value.findIndex(o => o.orderNumber === orderNumber)
-      if (index >= 0) {
-        orders.value[index] = data.order
+      // If status changed to completed/cancelled, remove from current view
+      // If in history view, update the order in place
+      if (viewMode.value === 'current' && newStatus !== 'pending') {
+        orders.value = orders.value.filter(o => o.orderNumber !== orderNumber)
+      } else if (viewMode.value === 'history') {
+        const index = orders.value.findIndex(o => o.orderNumber === orderNumber)
+        if (index >= 0) {
+          orders.value[index] = data.order
+        }
       }
     } else {
       throw new Error(data.error || 'Failed to update status')
@@ -232,10 +201,20 @@ function playNotification(): void {
 // Polling Control
 // ============================================================================
 
+async function pollOrders(): Promise<void> {
+  const previousCount = orders.value.length
+  await fetchOrders()
+
+  // Play notification if new orders arrived (only in current view)
+  if (viewMode.value === 'current' && orders.value.length > previousCount) {
+    playNotification()
+  }
+}
+
 function startPolling(): void {
   if (pollInterval) return
 
-  pollInterval = setInterval(fetchNewOrders, POLL_INTERVAL_MS)
+  pollInterval = setInterval(pollOrders, POLL_INTERVAL_MS)
   console.log('[App] Polling started')
 }
 
@@ -248,11 +227,22 @@ function stopPolling(): void {
 }
 
 // ============================================================================
+// View Mode Change
+// ============================================================================
+
+async function switchView(mode: 'current' | 'history'): Promise<void> {
+  viewMode.value = mode
+  isLoading.value = true
+  await fetchOrders()
+  isLoading.value = false
+}
+
+// ============================================================================
 // Lifecycle
 // ============================================================================
 
 onMounted(async () => {
-  await fetchAllOrders()
+  await fetchOrders()
   isLoading.value = false
   startPolling()
 })
@@ -269,7 +259,7 @@ onUnmounted(() => {
       <div class="header-left">
         <div class="logo">
           <span class="logo-icon">🥡</span>
-          <h1>Far East Orders</h1>
+          <h1>Far East Chinese Restaurant</h1>
         </div>
         <span class="date">{{ todayDate }}</span>
       </div>
@@ -277,20 +267,20 @@ onUnmounted(() => {
       <div class="header-right">
         <div class="connection-status polling">
           <span class="status-dot"></span>
-          <span>Polling</span>
+          <span>Live</span>
         </div>
 
         <div class="view-toggle">
           <button
             :class="{ active: viewMode === 'current' }"
-            @click="viewMode = 'current'"
+            @click="switchView('current')"
           >
             Current Orders
             <span v-if="currentOrderCount > 0" class="count-badge">{{ currentOrderCount }}</span>
           </button>
           <button
             :class="{ active: viewMode === 'history' }"
-            @click="viewMode = 'history'"
+            @click="switchView('history')"
           >
             History
           </button>
@@ -301,7 +291,7 @@ onUnmounted(() => {
     <!-- Error Banner -->
     <div v-if="error" class="error-banner">
       <span>{{ error }}</span>
-      <button @click="error = null" class="dismiss-btn">×</button>
+      <button @click="error = null" class="dismiss-btn">x</button>
     </div>
 
     <!-- Loading State -->
@@ -312,7 +302,7 @@ onUnmounted(() => {
 
     <!-- Orders Grid -->
     <main v-else class="orders-container">
-      <div v-if="filteredOrders.length === 0" class="empty-state">
+      <div v-if="orders.length === 0" class="empty-state">
         <span class="empty-icon">{{ viewMode === 'current' ? '📋' : '📜' }}</span>
         <h2>{{ viewMode === 'current' ? 'No pending orders' : 'No order history' }}</h2>
         <p>{{ viewMode === 'current' ? 'New orders will appear here' : 'Completed orders will be shown here' }}</p>
@@ -320,7 +310,7 @@ onUnmounted(() => {
 
       <div v-else class="orders-grid">
         <article
-          v-for="order in filteredOrders"
+          v-for="order in orders"
           :key="order.orderNumber"
           class="order-card"
           :class="[order.status, { updating: statusUpdateInProgress === order.orderNumber }]"
@@ -336,12 +326,12 @@ onUnmounted(() => {
 
           <!-- Order Items -->
           <div class="order-items">
-            <h3 class="section-label">📦 Items</h3>
+            <h3 class="section-label">Items</h3>
             <ul>
               <li v-for="(item, idx) in order.items" :key="idx" class="item">
                 <div class="item-main">
-                  <span class="quantity-badge">{{ item.quantity }}×</span>
-                  <span class="item-name">{{ item.name }}</span>
+                  <span class="quantity-badge">{{ item.quantity }}x</span>
+                  <span class="item-name">{{ item.menuItemName || item.menuItemId }}</span>
                   <span v-if="item.size" class="item-size">({{ item.size }})</span>
                 </div>
                 <div v-if="item.modifications" class="item-mods">
@@ -353,7 +343,7 @@ onUnmounted(() => {
 
           <!-- Order Notes -->
           <div v-if="order.notes" class="order-notes">
-            <h3 class="section-label">📝 Notes</h3>
+            <h3 class="section-label">Notes</h3>
             <p>{{ order.notes }}</p>
           </div>
 
@@ -361,11 +351,13 @@ onUnmounted(() => {
           <div class="order-footer">
             <div class="footer-info">
               <div class="phone">
-                <span class="label">📞</span>
+                <span class="label">Tel:</span>
                 <span>{{ formatPhone(order.phoneNumber) }}</span>
               </div>
-              <div class="total">
-                {{ formatCurrency(order.total) }}
+              <div class="price-breakdown">
+                <div class="subtotal">Subtotal: {{ formatCurrency(order.subtotal) }}</div>
+                <div class="tax">Tax (8%): {{ formatCurrency(order.tax) }}</div>
+                <div class="total">Total: {{ formatCurrency(order.total) }}</div>
               </div>
             </div>
 
@@ -377,9 +369,6 @@ onUnmounted(() => {
                 :class="order.status"
               >
                 <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="preparing">Preparing</option>
-                <option value="ready">Ready</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
@@ -405,9 +394,6 @@ onUnmounted(() => {
   --color-info: #0284c7;
 
   --color-pending: #f59e0b;
-  --color-confirmed: #3b82f6;
-  --color-preparing: #8b5cf6;
-  --color-ready: #10b981;
   --color-completed: #059669;
   --color-cancelled: #6b7280;
 
@@ -474,7 +460,7 @@ body {
 }
 
 .logo h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -504,8 +490,8 @@ body {
 }
 
 .connection-status.polling {
-  background: #fef3c7;
-  color: var(--color-warning);
+  background: #ecfdf5;
+  color: var(--color-success);
 }
 
 .status-dot {
@@ -629,7 +615,7 @@ body {
 /* Orders Grid */
 .orders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 20px;
 }
 
@@ -659,9 +645,6 @@ body {
   background: var(--color-pending);
 }
 
-.order-card.confirmed .status-accent { background: var(--color-confirmed); }
-.order-card.preparing .status-accent { background: var(--color-preparing); }
-.order-card.ready .status-accent { background: var(--color-ready); }
 .order-card.completed .status-accent { background: var(--color-completed); }
 .order-card.cancelled .status-accent { background: var(--color-cancelled); }
 
@@ -675,7 +658,7 @@ body {
 }
 
 .order-number {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
@@ -724,6 +707,8 @@ body {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
+  min-width: 32px;
+  text-align: center;
 }
 
 .item-name {
@@ -736,7 +721,7 @@ body {
 }
 
 .item-mods {
-  margin-left: 36px;
+  margin-left: 40px;
   padding-left: 12px;
   border-left: 2px solid var(--color-border);
   font-size: 13px;
@@ -764,7 +749,7 @@ body {
   background: var(--color-bg);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -772,7 +757,7 @@ body {
 .footer-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .phone {
@@ -783,17 +768,32 @@ body {
   font-size: 14px;
 }
 
-.total {
+.phone .label {
+  color: var(--color-text-secondary);
+}
+
+.price-breakdown {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.price-breakdown .subtotal,
+.price-breakdown .tax {
+  margin-bottom: 2px;
+}
+
+.price-breakdown .total {
   font-size: 18px;
   font-weight: 700;
   color: var(--color-success);
+  margin-top: 4px;
 }
 
 /* Status Dropdown */
 .status-control select {
-  padding: 8px 32px 8px 12px;
+  padding: 10px 36px 10px 14px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -801,7 +801,7 @@ body {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: right 12px center;
 }
 
 .status-control select:focus {
@@ -809,18 +809,19 @@ body {
   border-color: var(--color-primary);
 }
 
-.status-control select.pending { border-color: var(--color-pending); }
-.status-control select.confirmed { border-color: var(--color-confirmed); }
-.status-control select.preparing { border-color: var(--color-preparing); }
-.status-control select.ready { border-color: var(--color-ready); }
-.status-control select.completed { border-color: var(--color-completed); }
-.status-control select.cancelled { border-color: var(--color-cancelled); }
+.status-control select.pending { border-color: var(--color-pending); color: var(--color-pending); }
+.status-control select.completed { border-color: var(--color-completed); color: var(--color-completed); }
+.status-control select.cancelled { border-color: var(--color-cancelled); color: var(--color-cancelled); }
 
 /* Responsive */
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .logo h1 {
+    font-size: 16px;
   }
 
   .header-right {

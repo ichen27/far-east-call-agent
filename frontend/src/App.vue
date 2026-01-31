@@ -9,6 +9,7 @@ import {
   type ConnectionState,
 } from './composables'
 import { type Order, type OrderStatus } from './types'
+import MenuManagement from './components/MenuManagement.vue'
 
 // Configuration - use environment variables in production
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -50,6 +51,7 @@ const {
 
 // State
 const orders = ref<Order[]>([])
+const mainView = ref<'orders' | 'menu'>('orders')  // FAREAST-31: Main view toggle
 const viewMode = ref<'current' | 'history'>('current')
 const lastKnownOrderNumbers = ref<Set<string>>(new Set())
 const usingPollingFallback = ref(false)
@@ -397,6 +399,30 @@ watch(reconnectAttempts, (attempts) => {
       </div>
 
       <div class="header-controls">
+        <!-- Main Navigation (FAREAST-31) -->
+        <div class="main-nav">
+          <button
+            :class="{ active: mainView === 'orders' }"
+            @click="mainView = 'orders'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+              <rect x="9" y="3" width="6" height="4" rx="1"/>
+            </svg>
+            Orders
+          </button>
+          <button
+            :class="{ active: mainView === 'menu' }"
+            @click="mainView = 'menu'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+            </svg>
+            Menu
+          </button>
+        </div>
+
         <div class="connection-status" :class="connectionStatusClass">
           <span class="status-dot"></span>
           <span class="status-text">{{ connectionStatusText }}</span>
@@ -409,7 +435,7 @@ watch(reconnectAttempts, (attempts) => {
           </button>
         </div>
 
-        <div class="view-toggle">
+        <div v-if="mainView === 'orders'" class="view-toggle">
           <button
             :class="{ active: viewMode === 'current' }"
             @click="viewMode = 'current'"
@@ -434,8 +460,11 @@ watch(reconnectAttempts, (attempts) => {
       </div>
     </header>
 
-    <!-- Error Banner -->
-    <div v-if="hasError" class="error-banner">
+    <!-- Menu Management View (FAREAST-31) -->
+    <MenuManagement v-if="mainView === 'menu'" />
+
+    <!-- Error Banner (only show in orders view) -->
+    <div v-if="hasError && mainView === 'orders'" class="error-banner">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="8" x2="12" y2="12"/>
@@ -445,14 +474,14 @@ watch(reconnectAttempts, (attempts) => {
       <button v-if="apiError" class="dismiss-btn" @click="clearError">Dismiss</button>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isInitialLoading" class="loading-container">
+    <!-- Loading State (orders view only) -->
+    <div v-if="isInitialLoading && mainView === 'orders'" class="loading-container">
       <div class="loading-spinner"></div>
       <p>Loading orders...</p>
     </div>
 
-    <!-- Orders Section -->
-    <main v-else class="orders-section">
+    <!-- Orders Section (only when in orders view) -->
+    <main v-else-if="mainView === 'orders'" class="orders-section">
       <div class="orders-container">
         <!-- Order Cards -->
         <div
@@ -697,6 +726,42 @@ watch(reconnectAttempts, (attempts) => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* Main Navigation (FAREAST-31) */
+.main-nav {
+  display: flex;
+  gap: 4px;
+  background: var(--color-bg-primary);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.main-nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--color-text-secondary);
+}
+
+.main-nav button:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+}
+
+.main-nav button.active {
+  background: var(--color-bg-secondary);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Connection Status */

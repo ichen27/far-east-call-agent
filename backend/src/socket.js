@@ -12,7 +12,16 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 
-import { getAllOrders, updateOrderStatus } from './database.js';
+import {
+  getAllOrders,
+  updateOrderStatus,
+  getAllMenuItems,
+  getMenuItemById,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  getMenuCategories,
+} from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
 import config from './config.js';
 
@@ -50,6 +59,20 @@ function handleHttpRequest(req, res) {
     handleGetStats(req, res);
   } else if (req.method === 'PUT' && req.url?.match(/^\/api\/orders\/[\w-]+\/status$/)) {
     handleUpdateOrderStatus(req, res);
+  }
+  // Menu management routes (FAREAST-31)
+  else if (req.method === 'GET' && req.url === '/api/menu') {
+    handleGetMenuItems(req, res);
+  } else if (req.method === 'GET' && req.url === '/api/menu/categories') {
+    handleGetMenuCategories(req, res);
+  } else if (req.method === 'GET' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleGetMenuItem(req, res);
+  } else if (req.method === 'POST' && req.url === '/api/menu') {
+    handleCreateMenuItem(req, res);
+  } else if (req.method === 'PUT' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleUpdateMenuItem(req, res);
+  } else if (req.method === 'DELETE' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleDeleteMenuItem(req, res);
   } else {
     handleNotFound(res);
   }
@@ -66,7 +89,7 @@ function handleHttpRequest(req, res) {
  */
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -145,6 +168,145 @@ function handleUpdateOrderStatus(req, res) {
  */
 function handleNotFound(res) {
   sendJsonResponse(res, 404, { error: 'Not found' });
+}
+
+// ---------------------------------------------------------------------------
+// Menu Management Handlers (FAREAST-31)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles GET /api/menu - Fetches all menu items.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuItems(req, res) {
+  try {
+    const items = getAllMenuItems();
+    sendJsonResponse(res, 200, items);
+  } catch (error) {
+    console.error('[Socket] Error fetching menu items:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch menu items' });
+  }
+}
+
+/**
+ * Handles GET /api/menu/categories - Fetches all menu categories.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuCategories(req, res) {
+  try {
+    const categories = getMenuCategories();
+    sendJsonResponse(res, 200, categories);
+  } catch (error) {
+    console.error('[Socket] Error fetching categories:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch categories' });
+  }
+}
+
+/**
+ * Handles GET /api/menu/:id - Fetches a single menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuItem(req, res) {
+  try {
+    const id = parseInt(req.url.split('/')[3], 10);
+    const item = getMenuItemById(id);
+    if (item) {
+      sendJsonResponse(res, 200, item);
+    } else {
+      sendJsonResponse(res, 404, { error: 'Menu item not found' });
+    }
+  } catch (error) {
+    console.error('[Socket] Error fetching menu item:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch menu item' });
+  }
+}
+
+/**
+ * Handles POST /api/menu - Creates a new menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleCreateMenuItem(req, res) {
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const item = JSON.parse(body);
+      if (!item.name || !item.category) {
+        sendJsonResponse(res, 400, { error: 'Name and category are required' });
+        return;
+      }
+      const result = createMenuItem(item);
+      if (result.success) {
+        // Broadcast menu update to all connected clients
+        orderBroadcaster.broadcast('menu_updated', { action: 'created', itemId: result.id });
+        sendJsonResponse(res, 201, { success: true, id: result.id });
+      } else {
+        sendJsonResponse(res, 500, { error: result.message });
+      }
+    } catch (error) {
+      console.error('[Socket] Error creating menu item:', error);
+      sendJsonResponse(res, 500, { error: 'Failed to create menu item' });
+    }
+  });
+}
+
+/**
+ * Handles PUT /api/menu/:id - Updates a menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleUpdateMenuItem(req, res) {
+  const id = parseInt(req.url.split('/')[3], 10);
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const updates = JSON.parse(body);
+      const result = updateMenuItem(id, updates);
+      if (result.success) {
+        // Broadcast menu update to all connected clients
+        orderBroadcaster.broadcast('menu_updated', { action: 'updated', itemId: id });
+        sendJsonResponse(res, 200, { success: true });
+      } else {
+        sendJsonResponse(res, 404, { error: result.message });
+      }
+    } catch (error) {
+      console.error('[Socket] Error updating menu item:', error);
+      sendJsonResponse(res, 500, { error: 'Failed to update menu item' });
+    }
+  });
+}
+
+/**
+ * Handles DELETE /api/menu/:id - Deletes a menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleDeleteMenuItem(req, res) {
+  try {
+    const id = parseInt(req.url.split('/')[3], 10);
+    const result = deleteMenuItem(id);
+    if (result.success) {
+      // Broadcast menu update to all connected clients
+      orderBroadcaster.broadcast('menu_updated', { action: 'deleted', itemId: id });
+      sendJsonResponse(res, 200, { success: true });
+    } else {
+      sendJsonResponse(res, 404, { error: result.message });
+    }
+  } catch (error) {
+    console.error('[Socket] Error deleting menu item:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to delete menu item' });
+  }
 }
 
 /**

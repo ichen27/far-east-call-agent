@@ -15,7 +15,13 @@ import { RealtimeAgent, RealtimeSession, tool } from '@openai/agents/realtime';
 import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
 import Twilio from 'twilio';
 
-import { createOrderAtomic } from './database.js';
+import {
+  createOrderAtomic,
+  getOrdersByPhoneNumber,
+  addItemToOrder,
+  removeItemFromOrder,
+  cancelOrder,
+} from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
 import { VOICE_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
@@ -257,6 +263,209 @@ function createTransferToHumanTool(getCallSid) {
 }
 
 // ---------------------------------------------------------------------------
+// Order Modification Tools (FAREAST-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates the lookup_order tool for finding existing orders.
+ * Allows customers to look up and modify their recent orders.
+ *
+ * @returns {Object} The tool definition
+ */
+function createLookupOrderTool() {
+  return tool({
+    name: 'lookup_order',
+    description:
+      'Look up existing orders by phone number. Use this when a customer says they want to change, modify, ' +
+      'add to, or cancel a recent order. Ask for their phone number first, then use this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        phoneNumber: {
+          type: 'string',
+          description: 'The customer phone number to look up orders for',
+        },
+      },
+      required: ['phoneNumber'],
+    },
+
+    execute: async ({ phoneNumber }) => {
+      console.log(`[Voice] Looking up orders for phone: ${phoneNumber}`);
+      const orders = getOrdersByPhoneNumber(phoneNumber);
+
+      if (orders.length === 0) {
+        return 'No active orders found for this phone number. The customer may need to place a new order.';
+      }
+
+      // Format orders for the agent
+      const orderSummaries = orders.map(order => {
+        const itemList = order.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+        return `Order #${order.orderNumber} (${order.status}): ${itemList}. Total: $${order.total.toFixed(2)}`;
+      }).join('\n');
+
+      console.log(`[Voice] Found ${orders.length} order(s) for ${phoneNumber}`);
+      return `Found ${orders.length} order(s):\n${orderSummaries}\n\nAsk the customer which order they want to modify and what changes they'd like to make.`;
+    },
+  });
+}
+
+/**
+ * Creates the add_to_order tool for adding items to existing orders.
+ *
+ * @returns {Object} The tool definition
+ */
+function createAddToOrderTool() {
+  return tool({
+    name: 'add_to_order',
+    description:
+      'Add an item to an existing order. Use this after looking up the order with lookup_order.',
+    parameters: {
+      type: 'object',
+      properties: {
+        orderNumber: {
+          type: 'string',
+          description: 'The order number to add items to',
+        },
+        itemName: {
+          type: 'string',
+          description: 'Name of the menu item to add',
+        },
+        quantity: {
+          type: 'number',
+          description: 'Quantity of the item',
+        },
+        size: {
+          type: 'string',
+          description: 'Size of the item (Pt, Qt, etc.)',
+        },
+        price: {
+          type: 'number',
+          description: 'Price per item',
+        },
+        modifications: {
+          type: 'string',
+          description: 'Any special requests or modifications',
+        },
+      },
+      required: ['orderNumber', 'itemName', 'quantity', 'price'],
+    },
+
+    execute: async ({ orderNumber, itemName, quantity, size, price, modifications }) => {
+      console.log(`[Voice] Adding ${quantity}x ${itemName} to order ${orderNumber}`);
+
+      const result = addItemToOrder(orderNumber, {
+        name: itemName,
+        quantity,
+        size: size || null,
+        price,
+        modifications: modifications || '',
+      });
+
+      if (result.success) {
+        // Broadcast the update to the frontend
+        orderBroadcaster.broadcastOrderUpdate(orderNumber, 'item_added', {
+          itemName,
+          quantity,
+          newTotal: result.newTotal,
+        });
+        console.log(`[Voice] Successfully added item. New total: $${result.newTotal.toFixed(2)}`);
+        return `${result.message}. New total is $${result.newTotal.toFixed(2)}.`;
+      }
+
+      return result.message;
+    },
+  });
+}
+
+/**
+ * Creates the remove_from_order tool for removing items from existing orders.
+ *
+ * @returns {Object} The tool definition
+ */
+function createRemoveFromOrderTool() {
+  return tool({
+    name: 'remove_from_order',
+    description:
+      'Remove an item from an existing order. Use this after looking up the order with lookup_order.',
+    parameters: {
+      type: 'object',
+      properties: {
+        orderNumber: {
+          type: 'string',
+          description: 'The order number to remove items from',
+        },
+        itemName: {
+          type: 'string',
+          description: 'Name of the item to remove (partial match is fine)',
+        },
+        quantity: {
+          type: 'number',
+          description: 'Quantity to remove. Omit to remove all of that item.',
+        },
+      },
+      required: ['orderNumber', 'itemName'],
+    },
+
+    execute: async ({ orderNumber, itemName, quantity }) => {
+      console.log(`[Voice] Removing ${quantity || 'all'} ${itemName} from order ${orderNumber}`);
+
+      const result = removeItemFromOrder(orderNumber, itemName, quantity || null);
+
+      if (result.success) {
+        // Broadcast the update to the frontend
+        orderBroadcaster.broadcastOrderUpdate(orderNumber, 'item_removed', {
+          itemName,
+          newTotal: result.newTotal,
+        });
+        console.log(`[Voice] Successfully removed item. New total: $${result.newTotal.toFixed(2)}`);
+        return `${result.message}. New total is $${result.newTotal.toFixed(2)}.`;
+      }
+
+      return result.message;
+    },
+  });
+}
+
+/**
+ * Creates the cancel_order tool for cancelling existing orders.
+ *
+ * @returns {Object} The tool definition
+ */
+function createCancelOrderTool() {
+  return tool({
+    name: 'cancel_order',
+    description:
+      'Cancel an entire order. Use this when a customer wants to cancel their order completely. ' +
+      'Confirm with the customer before cancelling.',
+    parameters: {
+      type: 'object',
+      properties: {
+        orderNumber: {
+          type: 'string',
+          description: 'The order number to cancel',
+        },
+      },
+      required: ['orderNumber'],
+    },
+
+    execute: async ({ orderNumber }) => {
+      console.log(`[Voice] Cancelling order ${orderNumber}`);
+
+      const result = cancelOrder(orderNumber);
+
+      if (result.success) {
+        // Broadcast the cancellation to the frontend
+        orderBroadcaster.broadcastOrderUpdate(orderNumber, 'cancelled', {});
+        console.log(`[Voice] Order ${orderNumber} cancelled successfully`);
+        return result.message;
+      }
+
+      return result.message;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // WebSocket Connection Handler
 // ---------------------------------------------------------------------------
 
@@ -334,11 +543,17 @@ wss.on('connection', (twilioWs) => {
   const hangUpTool = createHangUpTool(getCallSid);
   const transferToHuman = createTransferToHumanTool(getCallSid);
 
+  // Order modification tools (FAREAST-5)
+  const lookupOrder = createLookupOrderTool();
+  const addToOrder = createAddToOrderTool();
+  const removeFromOrder = createRemoveFromOrderTool();
+  const cancelOrderTool = createCancelOrderTool();
+
   // Create the AI agent
   const agent = new RealtimeAgent({
     name: 'Phone Assistant',
     instructions: VOICE_AGENT_INSTRUCTIONS,
-    tools: [hangUpTool, submitOrder, transferToHuman],
+    tools: [hangUpTool, submitOrder, transferToHuman, lookupOrder, addToOrder, removeFromOrder, cancelOrderTool],
   });
 
   // Bridge Twilio audio with OpenAI's Realtime API

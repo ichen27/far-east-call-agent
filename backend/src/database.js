@@ -247,6 +247,313 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+// ---------------------------------------------------------------------------
+// Order Lookup and Modification Functions (FAREAST-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Look up orders by phone number (for returning customers)
+ * Returns pending/confirmed orders that can still be modified
+ *
+ * @param {string} phoneNumber - Customer phone number
+ * @returns {Array} - Array of modifiable orders with items
+ */
+export function getOrdersByPhoneNumber(phoneNumber) {
+  // Normalize phone number by removing non-digits
+  const normalizedPhone = phoneNumber.replace(/\D/g, '');
+
+  // Get orders from today that are still modifiable (pending or confirmed)
+  const orders = db.prepare(`
+    SELECT id, order_number, phone_number, status, total, notes, created_at, scheduled_pickup_time
+    FROM orders
+    WHERE REPLACE(REPLACE(REPLACE(phone_number, '-', ''), '(', ''), ')', '') LIKE ?
+      AND status IN ('pending', 'confirmed')
+      AND DATE(created_at) = DATE('now', 'localtime')
+    ORDER BY created_at DESC
+  `).all(`%${normalizedPhone}%`);
+
+  const getItems = db.prepare(`
+    SELECT id, item_name, quantity, size, unit_price, notes as modifications
+    FROM order_items
+    WHERE order_id = ?
+  `);
+
+  return orders.map(order => ({
+    orderId: order.id,
+    orderNumber: order.order_number,
+    phoneNumber: order.phone_number,
+    status: order.status,
+    total: order.total,
+    notes: order.notes || '',
+    createdAt: order.created_at,
+    scheduledPickupTime: order.scheduled_pickup_time || null,
+    items: getItems.all(order.id).map(item => ({
+      itemId: item.id,
+      name: item.item_name,
+      quantity: item.quantity,
+      size: item.size || null,
+      price: item.unit_price,
+      modifications: item.modifications || ''
+    }))
+  }));
+}
+
+/**
+ * Add an item to an existing order
+ *
+ * @param {string} orderNumber - The order number
+ * @param {Object} item - Item to add { name, quantity, size, price, modifications }
+ * @returns {Object} - { success, newTotal, message }
+ */
+export function addItemToOrder(orderNumber, item) {
+  const addItem = db.transaction(() => {
+    // Find the order
+    const order = db.prepare(`
+      SELECT id, status, total FROM orders
+      WHERE order_number = ? AND status IN ('pending', 'confirmed')
+    `).get(orderNumber);
+
+    if (!order) {
+      return { success: false, message: 'Order not found or cannot be modified' };
+    }
+
+    // Find menu item by name (optional)
+    const menuItem = db.prepare(`
+      SELECT id FROM menu_items WHERE name LIKE ? LIMIT 1
+    `).get(`%${item.name}%`);
+
+    const menuItemId = menuItem ? menuItem.id : null;
+    const lineTotal = item.quantity * item.price;
+
+    // Insert the new item
+    db.prepare(`
+      INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, size, unit_price, total, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      order.id,
+      menuItemId,
+      item.name,
+      item.quantity,
+      item.size || null,
+      item.price,
+      lineTotal,
+      item.modifications || ''
+    );
+
+    // Update order total
+    const newTotal = order.total + lineTotal;
+    db.prepare(`
+      UPDATE orders SET total = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(newTotal, order.id);
+
+    return { success: true, newTotal, message: `Added ${item.quantity}x ${item.name} to order ${orderNumber}` };
+  });
+
+  return addItem();
+}
+
+/**
+ * Remove an item from an existing order
+ *
+ * @param {string} orderNumber - The order number
+ * @param {string} itemName - Name of item to remove (partial match)
+ * @param {number} [quantity] - Quantity to remove (null = remove all of that item)
+ * @returns {Object} - { success, newTotal, message }
+ */
+export function removeItemFromOrder(orderNumber, itemName, quantity = null) {
+  const removeItem = db.transaction(() => {
+    // Find the order
+    const order = db.prepare(`
+      SELECT id, status, total FROM orders
+      WHERE order_number = ? AND status IN ('pending', 'confirmed')
+    `).get(orderNumber);
+
+    if (!order) {
+      return { success: false, message: 'Order not found or cannot be modified' };
+    }
+
+    // Find the item in the order
+    const orderItem = db.prepare(`
+      SELECT id, item_name, quantity, unit_price
+      FROM order_items
+      WHERE order_id = ? AND LOWER(item_name) LIKE LOWER(?)
+      LIMIT 1
+    `).get(order.id, `%${itemName}%`);
+
+    if (!orderItem) {
+      return { success: false, message: `Item "${itemName}" not found in order` };
+    }
+
+    const qtyToRemove = quantity || orderItem.quantity;
+    const priceReduction = qtyToRemove * orderItem.unit_price;
+
+    if (qtyToRemove >= orderItem.quantity) {
+      // Remove the entire item
+      db.prepare(`DELETE FROM order_items WHERE id = ?`).run(orderItem.id);
+    } else {
+      // Reduce quantity
+      const newQty = orderItem.quantity - qtyToRemove;
+      db.prepare(`
+        UPDATE order_items SET quantity = ?, total = ? WHERE id = ?
+      `).run(newQty, newQty * orderItem.unit_price, orderItem.id);
+    }
+
+    // Update order total
+    const newTotal = Math.max(0, order.total - priceReduction);
+    db.prepare(`
+      UPDATE orders SET total = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(newTotal, order.id);
+
+    return {
+      success: true,
+      newTotal,
+      message: `Removed ${qtyToRemove}x ${orderItem.item_name} from order ${orderNumber}`
+    };
+  });
+
+  return removeItem();
+}
+
+/**
+ * Cancel an order entirely
+ *
+ * @param {string} orderNumber - The order number to cancel
+ * @returns {Object} - { success, message }
+ */
+export function cancelOrder(orderNumber) {
+  const order = db.prepare(`
+    SELECT id, status FROM orders
+    WHERE order_number = ? AND status IN ('pending', 'confirmed')
+  `).get(orderNumber);
+
+  if (!order) {
+    return { success: false, message: 'Order not found or cannot be cancelled' };
+  }
+
+  db.prepare(`
+    UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(order.id);
+
+  return { success: true, message: `Order ${orderNumber} has been cancelled` };
+}
+
+// ---------------------------------------------------------------------------
+// Menu Management Functions (FAREAST-31)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get all menu items
+ * @returns {Array} - All menu items
+ */
+export function getAllMenuItems() {
+  return db.prepare(`
+    SELECT id, item_number, name, description, price_small, price_large, price_single,
+           included, category, is_spicy
+    FROM menu_items
+    ORDER BY category, item_number
+  `).all();
+}
+
+/**
+ * Get menu item by ID
+ * @param {number} id - Menu item ID
+ * @returns {Object|null} - Menu item or null
+ */
+export function getMenuItemById(id) {
+  return db.prepare(`
+    SELECT id, item_number, name, description, price_small, price_large, price_single,
+           included, category, is_spicy
+    FROM menu_items WHERE id = ?
+  `).get(id);
+}
+
+/**
+ * Create a new menu item
+ * @param {Object} item - Menu item data
+ * @returns {Object} - { success, id, message }
+ */
+export function createMenuItem(item) {
+  try {
+    const result = db.prepare(`
+      INSERT INTO menu_items (item_number, name, description, price_small, price_large, price_single, included, category, is_spicy)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.item_number || null,
+      item.name,
+      item.description || null,
+      item.price_small || null,
+      item.price_large || null,
+      item.price_single || null,
+      item.included || null,
+      item.category,
+      item.is_spicy || 0
+    );
+    return { success: true, id: result.lastInsertRowid, message: 'Menu item created' };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+}
+
+/**
+ * Update an existing menu item
+ * @param {number} id - Menu item ID
+ * @param {Object} updates - Fields to update
+ * @returns {Object} - { success, message }
+ */
+export function updateMenuItem(id, updates) {
+  const existing = getMenuItemById(id);
+  if (!existing) {
+    return { success: false, message: 'Menu item not found' };
+  }
+
+  const fields = [];
+  const values = [];
+
+  if (updates.item_number !== undefined) { fields.push('item_number = ?'); values.push(updates.item_number); }
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
+  if (updates.price_small !== undefined) { fields.push('price_small = ?'); values.push(updates.price_small); }
+  if (updates.price_large !== undefined) { fields.push('price_large = ?'); values.push(updates.price_large); }
+  if (updates.price_single !== undefined) { fields.push('price_single = ?'); values.push(updates.price_single); }
+  if (updates.included !== undefined) { fields.push('included = ?'); values.push(updates.included); }
+  if (updates.category !== undefined) { fields.push('category = ?'); values.push(updates.category); }
+  if (updates.is_spicy !== undefined) { fields.push('is_spicy = ?'); values.push(updates.is_spicy ? 1 : 0); }
+
+  if (fields.length === 0) {
+    return { success: false, message: 'No fields to update' };
+  }
+
+  values.push(id);
+  db.prepare(`UPDATE menu_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+  return { success: true, message: 'Menu item updated' };
+}
+
+/**
+ * Delete a menu item
+ * @param {number} id - Menu item ID
+ * @returns {Object} - { success, message }
+ */
+export function deleteMenuItem(id) {
+  const result = db.prepare('DELETE FROM menu_items WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return { success: false, message: 'Menu item not found' };
+  }
+  return { success: true, message: 'Menu item deleted' };
+}
+
+/**
+ * Get all unique categories
+ * @returns {Array<string>} - Array of category names
+ */
+export function getMenuCategories() {
+  return db.prepare('SELECT DISTINCT category FROM menu_items ORDER BY category').all()
+    .map(row => row.category);
+}
+
 // Export the raw db for cases where direct access is needed
 // (use sparingly - prefer the atomic functions above)
 export { db };

@@ -223,6 +223,35 @@ class OrderBroadcaster {
       }
     }
   }
+
+  /**
+   * Broadcast an order update (modification, cancellation, etc.) - FAREAST-5
+   * @param {string} orderNumber - The order number being updated
+   * @param {string} updateType - Type of update ('item_added', 'item_removed', 'cancelled', 'modified')
+   * @param {Object} details - Details about the update
+   */
+  async broadcastOrderUpdate(orderNumber, updateType, details) {
+    const updateData = {
+      type: 'order_update',
+      payload: {
+        orderNumber,
+        updateType,
+        ...details,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const message = JSON.stringify(updateData);
+
+    console.log(`[OrderBroadcaster] Broadcasting order update: ${orderNumber} - ${updateType}`);
+
+    if (this.clients.size === 0) {
+      console.log(`[OrderBroadcaster] No clients connected for order update`);
+      return { success: true, sentCount: 0, errors: [] };
+    }
+
+    return this._broadcastToAll(message);
+  }
 }
 
 // Export a singleton instance

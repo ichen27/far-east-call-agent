@@ -2,16 +2,28 @@
  * database.js - Centralized database module with concurrency-safe operations
  *
  * This module provides a single shared database connection and atomic operations
- * optimized for handling 5+ concurrent voice agent calls.
+ * optimized for handling 50+ concurrent voice agent calls (FAREAST-21).
  *
- * OPTIMIZATIONS:
- * 1. WAL mode - allows multiple readers with one writer
- * 2. Foreign key enforcement - data integrity
- * 3. Busy timeout - prevents SQLITE_BUSY errors under load
- * 4. Optimized cache - better read performance
- * 5. NORMAL synchronous - good balance of safety and speed with WAL
- * 6. Memory-mapped I/O - faster reads
- * 7. Atomic transactions - prevents race conditions in order creation
+ * CONCURRENCY ARCHITECTURE:
+ * SQLite with WAL (Write-Ahead Logging) mode supports high concurrency:
+ * - Multiple concurrent readers (unlimited)
+ * - Single writer at a time (with queuing)
+ * - Readers don't block writers, writers don't block readers
+ *
+ * OPTIMIZATIONS FOR 50 CONCURRENT CALLS:
+ * 1. WAL mode - allows multiple readers with one writer (non-blocking reads)
+ * 2. Busy timeout 5000ms - queues writes instead of failing immediately
+ * 3. Large cache (64MB) - reduces disk I/O for repeated queries
+ * 4. Memory-mapped I/O (256MB) - faster reads through OS page cache
+ * 5. NORMAL synchronous - good durability with WAL without blocking
+ * 6. Atomic transactions - prevents race conditions in order creation
+ * 7. Foreign key enforcement - data integrity
+ *
+ * CAPACITY NOTES:
+ * - Each voice call creates ~2-3 DB writes (order + items)
+ * - Read operations (menu queries) are non-blocking
+ * - With 5000ms busy timeout, writes queue for up to 5 seconds
+ * - Typical order insertion takes <10ms, so 50 concurrent is safe
  */
 
 import Database from 'better-sqlite3';

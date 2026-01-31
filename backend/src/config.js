@@ -123,15 +123,29 @@ export const voiceAgent = {
 };
 
 /**
- * Database configuration.
+ * Database configuration (FAREAST-21: Optimized for 50 concurrent calls).
+ *
+ * SQLite with WAL mode can handle many concurrent readers with one writer.
+ * These settings are optimized for high-concurrency restaurant order taking:
+ * - WAL mode: Multiple readers, single writer without blocking
+ * - Busy timeout: Wait for locks instead of failing immediately
+ * - Large cache: Reduces disk I/O for repeated queries
+ * - Memory-mapped I/O: Faster reads through OS page cache
+ *
  * @constant {Object}
  */
 export const database = {
   /** SQLite database file path (absolute path resolved from config directory) */
   path: process.env.DB_PATH || join(__dirname, 'fareast.db'),
 
-  /** Busy timeout for concurrent access (milliseconds) */
+  /** Busy timeout for concurrent access (milliseconds) - handles write contention */
   busyTimeout: parseInt(process.env.DB_BUSY_TIMEOUT, 10) || 5000,
+
+  /** Cache size in KB (negative = KB, positive = pages). 64MB for frequent queries */
+  cacheSize: parseInt(process.env.DB_CACHE_SIZE, 10) || -64000,
+
+  /** Memory-mapped I/O size in bytes. 256MB for fast reads */
+  mmapSize: parseInt(process.env.DB_MMAP_SIZE, 10) || 268435456,
 };
 
 /**

@@ -28,6 +28,7 @@ import {
 } from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
 import config from './config.js';
+import { getHealthStatus, getLivenessStatus, getReadinessStatus } from './health.js';
 
 // ---------------------------------------------------------------------------
 // HTTP Server Setup
@@ -87,6 +88,14 @@ function handleHttpRequest(req, res) {
     handleGetCategoryRevenue(req, res);
   } else if (req.method === 'GET' && req.url === '/api/analytics/dashboard') {
     handleGetDashboardStats(req, res);
+  }
+  // Health check routes (FAREAST-11)
+  else if (req.method === 'GET' && req.url === '/health') {
+    handleHealthCheck(req, res);
+  } else if (req.method === 'GET' && req.url === '/health/live') {
+    handleLivenessCheck(req, res);
+  } else if (req.method === 'GET' && req.url === '/health/ready') {
+    handleReadinessCheck(req, res);
   } else {
     handleNotFound(res);
   }
@@ -432,6 +441,57 @@ function handleGetDashboardStats(req, res) {
   } catch (error) {
     console.error('[Socket] Error fetching dashboard stats:', error);
     sendJsonResponse(res, 500, { error: 'Failed to fetch dashboard stats' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Health Check Handlers (FAREAST-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles GET /health - Comprehensive health check
+ * Returns detailed system health status including database, memory, and uptime.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleHealthCheck(req, res) {
+  try {
+    const health = getHealthStatus();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    sendJsonResponse(res, statusCode, health);
+  } catch (error) {
+    console.error('[Socket] Error in health check:', error);
+    sendJsonResponse(res, 503, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * Handles GET /health/live - Kubernetes-style liveness probe
+ * Indicates if the process is alive and running.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleLivenessCheck(req, res) {
+  const liveness = getLivenessStatus();
+  sendJsonResponse(res, 200, liveness);
+}
+
+/**
+ * Handles GET /health/ready - Kubernetes-style readiness probe
+ * Indicates if the service is ready to accept requests.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleReadinessCheck(req, res) {
+  try {
+    const readiness = getReadinessStatus();
+    const statusCode = readiness.status === 'ready' ? 200 : 503;
+    sendJsonResponse(res, statusCode, readiness);
+  } catch (error) {
+    sendJsonResponse(res, 503, { status: 'not_ready', error: error.message });
   }
 }
 

@@ -31,6 +31,7 @@ export interface ApiOrder {
   date?: string
   total: number
   status: OrderStatus
+  scheduledPickupTime?: string | null
 }
 
 /**
@@ -44,6 +45,7 @@ export interface Order {
   totalPrice: number
   status: OrderStatus
   notes?: string
+  scheduledPickupTime?: Date | null
 }
 
 /**
@@ -65,5 +67,6 @@ export function apiOrderToOrder(apiOrder: ApiOrder): Order {
     totalPrice: apiOrder.total,
     status: apiOrder.status,
     notes: apiOrder.notes,
+    scheduledPickupTime: apiOrder.scheduledPickupTime ? new Date(apiOrder.scheduledPickupTime) : null,
   }
 }

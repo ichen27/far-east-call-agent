@@ -57,14 +57,16 @@ const submitOrder = tool({
    * @param {Array} params.items - Array of order items
    * @param {string} [params.notes] - Order notes
    * @param {number} params.totalPrice - Total price including tax
+   * @param {string} [params.scheduledPickupTime] - Scheduled pickup time (ISO string)
    * @returns {Promise<string>} Success or failure message
    */
-  execute: async ({ phoneNumber, items, notes, totalPrice }) => {
+  execute: async ({ phoneNumber, items, notes, totalPrice, scheduledPickupTime }) => {
     try {
       const { orderNumber } = createOrderAtomic({
         phoneNumber,
         totalPrice,
         notes: notes && notes.trim() ? notes : '',
+        scheduledPickupTime: scheduledPickupTime || null,
         items: items.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -74,15 +76,20 @@ const submitOrder = tool({
         })),
       });
 
-      logOrderSubmission(orderNumber, phoneNumber, items, totalPrice);
+      logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, scheduledPickupTime);
 
       // Broadcast order to frontend dashboard (same as voice agent)
-      await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
+      await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime);
 
       // Send SMS confirmation (FAREAST-19)
-      await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice);
+      await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime);
 
-      return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. Ready for pickup in ${config.restaurant.estimatedPickupTime}.`;
+      // Format pickup time message
+      const pickupMsg = scheduledPickupTime
+        ? `Scheduled pickup at ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : `Ready for pickup in ${config.restaurant.estimatedPickupTime}`;
+
+      return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. ${pickupMsg}.`;
     } catch (error) {
       console.error('[Chat] Failed to save order:', error);
       return `Order recorded. Total: $${totalPrice.toFixed(2)}`;
@@ -201,8 +208,9 @@ app.post('/chat', async (req, res) => {
  * @param {string} phoneNumber - Customer phone number
  * @param {Array} items - Array of order items
  * @param {number} totalPrice - Total price
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  */
-function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice) {
+function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, scheduledPickupTime) {
   console.log('\n[Chat] NEW ORDER SAVED TO DATABASE:');
   console.log(`   Order #: ${orderNumber}`);
   console.log(`   Phone: ${phoneNumber}`);
@@ -214,7 +222,8 @@ function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice) {
       `     ${i + 1}. ${item.name}${sizeDisplay} x${item.quantity} @ $${item.price.toFixed(2)}${modsDisplay}`
     );
   });
-  console.log(`   Total: $${totalPrice.toFixed(2)}\n`);
+  console.log(`   Total: $${totalPrice.toFixed(2)}`);
+  console.log(`   Pickup: ${scheduledPickupTime ? new Date(scheduledPickupTime).toLocaleTimeString() : 'ASAP (10-15 min)'}\n`);
 }
 
 /**
@@ -277,8 +286,9 @@ function extractResponseText(result) {
  * @param {Array} items - Array of order items
  * @param {string} notes - Order notes
  * @param {number} totalPrice - Total price
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  */
-async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice) {
+async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime) {
   await orderBroadcaster.broadcastOrder({
     orderNumber,
     phoneNumber,
@@ -293,6 +303,7 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
     totalPrice,
     status: 'pending',
     createdAt: new Date().toISOString(),
+    scheduledPickupTime: scheduledPickupTime || null,
     source: 'chat', // Distinguish chat orders from voice orders
   });
 }
@@ -304,9 +315,10 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
  * @param {string} orderNumber - Order number
  * @param {Array} items - Array of order items
  * @param {number} totalPrice - Total price including tax
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  * @returns {Promise<void>}
  */
-async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice) {
+async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime) {
   // Skip if SMS not configured
   if (!twilioClient || !config.sms?.enabled || !config.sms?.fromNumber) {
     console.log('[Chat SMS] SMS notifications disabled');
@@ -329,13 +341,18 @@ async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPr
     .join('\n');
   const moreItems = items.length > 5 ? `\n...and ${items.length - 5} more items` : '';
 
+  // Format pickup time (FAREAST-33)
+  const pickupTimeStr = scheduledPickupTime
+    ? `Scheduled: ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+    : `Ready in ${config.restaurant.estimatedPickupTime}`;
+
   const message = `🍜 Far East Kitchen - Order Confirmed!
 
 Order #${orderNumber}
 ${itemList}${moreItems}
 
 Total: $${totalPrice.toFixed(2)}
-Pickup: ${config.restaurant.estimatedPickupTime}
+Pickup: ${pickupTimeStr}
 
 📍 ${config.restaurant.address}
 📞 ${config.restaurant.phone}

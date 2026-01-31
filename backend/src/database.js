@@ -72,10 +72,11 @@ console.log('  - cache_size:', db.pragma('cache_size', { simple: true }));
  * @param {number} orderData.totalPrice - Total price of order
  * @param {string} orderData.notes - Order notes
  * @param {Array} orderData.items - Array of order items
+ * @param {string} [orderData.scheduledPickupTime] - Scheduled pickup time (ISO string) or null for ASAP
  * @returns {Object} - { orderId, orderNumber } or throws on error
  */
 export function createOrderAtomic(orderData) {
-  const { phoneNumber, totalPrice, notes, items } = orderData;
+  const { phoneNumber, totalPrice, notes, items, scheduledPickupTime } = orderData;
 
   // Use a transaction to make the entire operation atomic
   const createOrder = db.transaction(() => {
@@ -91,17 +92,18 @@ export function createOrderAtomic(orderData) {
 
     const orderNumber = (maxResult.max_num + 1).toString();
 
-    // Insert the order
+    // Insert the order with optional scheduled pickup time (FAREAST-33)
     const insertOrder = db.prepare(`
-      INSERT INTO orders (order_number, phone_number, status, order_type, total, notes)
-      VALUES (?, ?, 'pending', 'pickup', ?, ?)
+      INSERT INTO orders (order_number, phone_number, status, order_type, total, notes, scheduled_pickup_time)
+      VALUES (?, ?, 'pending', 'pickup', ?, ?, ?)
     `);
 
     const orderResult = insertOrder.run(
       orderNumber,
       phoneNumber,
       totalPrice,
-      notes || ''
+      notes || '',
+      scheduledPickupTime || null
     );
 
     const orderId = orderResult.lastInsertRowid;
@@ -149,7 +151,7 @@ export function createOrderAtomic(orderData) {
  */
 export function getAllOrders() {
   const orders = db.prepare(`
-    SELECT id, order_number, phone_number, status, order_type, total, notes, created_at
+    SELECT id, order_number, phone_number, status, order_type, total, notes, created_at, scheduled_pickup_time
     FROM orders
     ORDER BY created_at DESC
   `).all();
@@ -173,7 +175,8 @@ export function getAllOrders() {
     notes: order.notes || '',
     time: order.created_at,
     date: order.created_at ? order.created_at.split('T')[0] : null,
-    total: order.total
+    total: order.total,
+    scheduledPickupTime: order.scheduled_pickup_time || null
   }));
 }
 

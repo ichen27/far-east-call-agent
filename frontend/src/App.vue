@@ -118,7 +118,16 @@ function wsOrderToOrder(wsOrder: WSOrder): Order {
     timeOrdered: new Date(wsOrder.time),
     totalPrice: wsOrder.total,
     status: wsOrder.status,
+    scheduledPickupTime: (wsOrder as any).scheduledPickupTime ? new Date((wsOrder as any).scheduledPickupTime) : null,
   }
+}
+
+/**
+ * Format scheduled pickup time for display
+ */
+function formatPickupTime(date: Date | null | undefined): string {
+  if (!date) return 'ASAP'
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
 /**
@@ -272,6 +281,11 @@ function printOrder(order: Order): void {
 
   const notes = order.notes ? `<div class="notes">Notes: ${escapeHtml(order.notes)}</div>` : ''
 
+  // Format pickup time for print (FAREAST-33)
+  const pickupTimeStr = order.scheduledPickupTime
+    ? `PICKUP: ${formatPickupTime(order.scheduledPickupTime)}`
+    : 'PICKUP: ASAP (10-15 min)'
+
   // Create print document
   const html = `<!DOCTYPE html>
 <html>
@@ -285,6 +299,7 @@ function printOrder(order: Order): void {
     .restaurant-name { font-size: 16px; font-weight: bold; }
     .order-number { font-size: 24px; font-weight: bold; margin: 10px 0; }
     .order-time { font-size: 11px; color: #333; }
+    .pickup-time { font-size: 14px; font-weight: bold; margin-top: 5px; padding: 4px 8px; border: 2px solid #000; display: inline-block; }
     .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
     .items-table td { padding: 5px 2px; vertical-align: top; border-bottom: 1px dotted #ccc; }
     .items-table .qty { width: 30px; font-weight: bold; text-align: center; }
@@ -302,6 +317,7 @@ function printOrder(order: Order): void {
     <div class="restaurant-name">FAR EAST KITCHEN</div>
     <div class="order-number">#${escapeHtml(order.orderNumber)}</div>
     <div class="order-time">${formatDate(order.timeOrdered)[0]} ${formatDate(order.timeOrdered)[1]}</div>
+    <div class="pickup-time">${pickupTimeStr}</div>
   </div>
   <table class="items-table">${itemsList}</table>
   <div class="footer">
@@ -464,6 +480,14 @@ watch(reconnectAttempts, (attempts) => {
                   {{ formatDate(order.timeOrdered)[1] }}
                 </span>
                 <span class="order-date">{{ formatDate(order.timeOrdered)[0] }}</span>
+                <!-- Scheduled Pickup (FAREAST-33) -->
+                <span v-if="order.scheduledPickupTime" class="pickup-badge scheduled">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 3v4M19 3v4M5 21V11M19 21V11M5 11h14M5 7h14"/>
+                  </svg>
+                  Pickup: {{ formatPickupTime(order.scheduledPickupTime) }}
+                </span>
+                <span v-else class="pickup-badge asap">ASAP</span>
               </div>
             </div>
 
@@ -983,6 +1007,30 @@ watch(reconnectAttempts, (attempts) => {
   color: var(--color-text-muted);
   margin-top: 2px;
   display: block;
+}
+
+/* Pickup Badge (FAREAST-33) */
+.pickup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  margin-top: 6px;
+}
+
+.pickup-badge.scheduled {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #a5b4fc;
+}
+
+.pickup-badge.asap {
+  background: var(--color-pending-bg);
+  color: var(--color-pending-text);
+  border: 1px solid var(--color-pending-border);
 }
 
 /* Items Section */

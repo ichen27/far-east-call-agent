@@ -163,6 +163,21 @@ export const sms = {
 };
 
 /**
+ * Call transfer configuration (FAREAST-4).
+ * @constant {Object}
+ */
+export const callTransfer = {
+  /** Staff phone number to transfer calls to when customer requests human */
+  staffPhoneNumber: process.env.STAFF_PHONE_NUMBER || '',
+
+  /** Whether call transfer is enabled */
+  enabled: !!process.env.STAFF_PHONE_NUMBER,
+
+  /** Timeout in seconds to wait for staff to answer (default: 30s) */
+  timeout: parseInt(process.env.TRANSFER_TIMEOUT, 10) || 30,
+};
+
+/**
  * Full configuration object for convenience.
  * @constant {Object}
  */
@@ -175,6 +190,7 @@ const config = {
   database,
   restaurant,
   sms,
+  callTransfer,
 };
 
 export default config;

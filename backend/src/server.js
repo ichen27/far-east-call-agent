@@ -112,14 +112,16 @@ function createSubmitOrderTool(getCallSid) {
      * @param {Array} params.items - Array of order items
      * @param {string} [params.notes] - Order notes
      * @param {number} params.totalPrice - Total price including tax
+     * @param {string} [params.scheduledPickupTime] - Scheduled pickup time (ISO string)
      * @returns {Promise<string>} Success or failure message
      */
-    execute: async ({ phoneNumber, items, notes, totalPrice }) => {
+    execute: async ({ phoneNumber, items, notes, totalPrice, scheduledPickupTime }) => {
       try {
         const { orderNumber } = createOrderAtomic({
           phoneNumber,
           totalPrice,
           notes: notes || '',
+          scheduledPickupTime: scheduledPickupTime || null,
           items: items.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -129,14 +131,18 @@ function createSubmitOrderTool(getCallSid) {
           })),
         });
 
-        logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, getCallSid());
+        logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, getCallSid(), scheduledPickupTime);
 
-        await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice);
+        await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime);
 
         // Send SMS confirmation to customer (FAREAST-19)
-        await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice);
+        await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime);
 
-        return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}`;
+        const pickupMsg = scheduledPickupTime
+          ? `Scheduled pickup at ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+          : 'Ready in 10-15 minutes';
+
+        return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. ${pickupMsg}`;
       } catch (error) {
         console.error('[Voice] Failed to save order:', error);
         return `Order recorded. Total: $${totalPrice.toFixed(2)}`;
@@ -186,6 +192,65 @@ function createHangUpTool(getCallSid) {
       } catch (err) {
         console.error('[Voice] Failed to hang up:', err.message);
         return 'Failed to end call';
+      }
+    },
+  });
+}
+
+/**
+ * Creates the transfer_to_human tool for a specific call session (FAREAST-4).
+ * Transfers the call to restaurant staff when customer requests human assistance.
+ *
+ * @param {Function} getCallSid - Function that returns the current Twilio call SID
+ * @returns {Object} The tool definition
+ */
+function createTransferToHumanTool(getCallSid) {
+  return tool({
+    name: 'transfer_to_human',
+    description:
+      'Transfer the call to a real staff member. Use this when the customer explicitly requests to speak with a person, ' +
+      'says "speak to a human", "talk to someone", "real person", or is frustrated with the AI. ' +
+      'IMPORTANT: Say "Let me transfer you to a staff member. Please hold." BEFORE calling this tool.',
+    parameters: {},
+
+    /**
+     * Executes the call transfer to staff.
+     *
+     * @returns {Promise<string>} Success or failure message
+     */
+    execute: async () => {
+      const callSid = getCallSid();
+      console.log('[Voice] Agent requested transfer to human. CallSid:', callSid);
+
+      if (!callSid) {
+        console.error('[Voice] No callSid available for transfer');
+        return 'Could not transfer - no call ID. Please have the customer call back and speak to staff directly.';
+      }
+
+      if (!config.callTransfer.enabled) {
+        console.log('[Voice] Call transfer not configured (STAFF_PHONE_NUMBER not set)');
+        return 'Transfer is not available right now. Please have the customer call back during business hours to speak with staff directly at our main number.';
+      }
+
+      try {
+        // Use TwiML to dial the staff number
+        // This redirects the current call to connect with the staff phone
+        const twiml = `
+          <Response>
+            <Say>Please hold while we connect you to a staff member.</Say>
+            <Dial timeout="${config.callTransfer.timeout}" callerId="${config.sms.fromNumber || '+16077971166'}">
+              ${config.callTransfer.staffPhoneNumber}
+            </Dial>
+            <Say>We're sorry, but no one is available to take your call right now. Please try calling back during business hours. Goodbye.</Say>
+          </Response>
+        `;
+
+        await twilioClient.calls(callSid).update({ twiml });
+        console.log(`[Voice] Call ${callSid} transferred to ${config.callTransfer.staffPhoneNumber}`);
+        return 'Call is being transferred to staff. The AI assistant will disconnect now.';
+      } catch (err) {
+        console.error('[Voice] Failed to transfer call:', err.message);
+        return 'Unable to transfer right now. Please have the customer call our main number directly to speak with staff.';
       }
     },
   });
@@ -267,12 +332,13 @@ wss.on('connection', (twilioWs) => {
   // Create tools with getter function for lazy callSid access
   const submitOrder = createSubmitOrderTool(getCallSid);
   const hangUpTool = createHangUpTool(getCallSid);
+  const transferToHuman = createTransferToHumanTool(getCallSid);
 
   // Create the AI agent
   const agent = new RealtimeAgent({
     name: 'Phone Assistant',
     instructions: VOICE_AGENT_INSTRUCTIONS,
-    tools: [hangUpTool, submitOrder],
+    tools: [hangUpTool, submitOrder, transferToHuman],
   });
 
   // Bridge Twilio audio with OpenAI's Realtime API
@@ -364,8 +430,9 @@ wss.on('connection', (twilioWs) => {
  * @param {Array} items - Array of order items
  * @param {number} totalPrice - Total price
  * @param {string|null} callSid - Twilio call SID
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  */
-function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, callSid) {
+function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, callSid, scheduledPickupTime) {
   console.log('[Voice] NEW ORDER SAVED TO DATABASE:');
   console.log(`   Order #: ${orderNumber}`);
   console.log(`   Phone: ${phoneNumber}`);
@@ -375,6 +442,7 @@ function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, callSid
     console.log(`     ${i + 1}. ${item.name} x${item.quantity} @ $${item.price.toFixed(2)}${mods}`);
   });
   console.log(`   Total: $${totalPrice.toFixed(2)}`);
+  console.log(`   Pickup: ${scheduledPickupTime ? new Date(scheduledPickupTime).toLocaleTimeString() : 'ASAP (10-15 min)'}`);
   console.log(`   Call SID: ${callSid}`);
   console.log(`   Active calls: ${activeCalls.size}`);
 }
@@ -387,9 +455,10 @@ function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, callSid
  * @param {Array} items - Array of order items
  * @param {string} notes - Order notes
  * @param {number} totalPrice - Total price
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  * @returns {Promise<void>}
  */
-async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice) {
+async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime) {
   await orderBroadcaster.broadcastOrder({
     orderNumber,
     phoneNumber,
@@ -403,6 +472,7 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
     time: new Date().toISOString(),
     total: totalPrice,
     status: 'pending',
+    scheduledPickupTime: scheduledPickupTime || null,
   });
 }
 
@@ -423,9 +493,10 @@ function sleep(ms) {
  * @param {string} orderNumber - Order number
  * @param {Array} items - Array of order items
  * @param {number} totalPrice - Total price including tax
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  * @returns {Promise<void>}
  */
-async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice) {
+async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime) {
   // Skip if SMS not configured
   if (!config.sms.enabled || !config.sms.fromNumber) {
     console.log('[SMS] SMS notifications disabled (TWILIO_PHONE_NUMBER not set)');
@@ -449,13 +520,18 @@ async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPr
     .join('\n');
   const moreItems = items.length > 5 ? `\n...and ${items.length - 5} more items` : '';
 
+  // Format pickup time (FAREAST-33)
+  const pickupTimeStr = scheduledPickupTime
+    ? `Scheduled: ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+    : `Ready in ${config.restaurant.estimatedPickupTime}`;
+
   const message = `🍜 Far East Kitchen - Order Confirmed!
 
 Order #${orderNumber}
 ${itemList}${moreItems}
 
 Total: $${totalPrice.toFixed(2)}
-Pickup: ${config.restaurant.estimatedPickupTime}
+Pickup: ${pickupTimeStr}
 
 📍 ${config.restaurant.address}
 📞 ${config.restaurant.phone}

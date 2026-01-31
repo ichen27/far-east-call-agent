@@ -10,6 +10,7 @@ import {
 } from './composables'
 import { type Order, type OrderStatus } from './types'
 import MenuManagement from './components/MenuManagement.vue'
+import AnalyticsDashboard from './components/AnalyticsDashboard.vue'
 
 // Configuration - use environment variables in production
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -51,7 +52,7 @@ const {
 
 // State
 const orders = ref<Order[]>([])
-const mainView = ref<'orders' | 'menu'>('orders')  // FAREAST-31: Main view toggle
+const mainView = ref<'orders' | 'menu' | 'analytics'>('orders')  // FAREAST-31, FAREAST-10: Main view toggle
 const viewMode = ref<'current' | 'history'>('current')
 const lastKnownOrderNumbers = ref<Set<string>>(new Set())
 const usingPollingFallback = ref(false)
@@ -421,6 +422,15 @@ watch(reconnectAttempts, (attempts) => {
             </svg>
             Menu
           </button>
+          <button
+            :class="{ active: mainView === 'analytics' }"
+            @click="mainView = 'analytics'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 20V10M12 20V4M6 20v-6"/>
+            </svg>
+            Analytics
+          </button>
         </div>
 
         <div class="connection-status" :class="connectionStatusClass">
@@ -462,6 +472,9 @@ watch(reconnectAttempts, (attempts) => {
 
     <!-- Menu Management View (FAREAST-31) -->
     <MenuManagement v-if="mainView === 'menu'" />
+
+    <!-- Analytics Dashboard View (FAREAST-10) -->
+    <AnalyticsDashboard v-if="mainView === 'analytics'" />
 
     <!-- Error Banner (only show in orders view) -->
     <div v-if="hasError && mainView === 'orders'" class="error-banner">

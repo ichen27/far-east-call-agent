@@ -21,6 +21,10 @@ import {
   updateMenuItem,
   deleteMenuItem,
   getMenuCategories,
+  getOrderAnalytics,
+  getPopularItems,
+  getCategoryRevenue,
+  getDashboardStats,
 } from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
 import config from './config.js';
@@ -73,6 +77,16 @@ function handleHttpRequest(req, res) {
     handleUpdateMenuItem(req, res);
   } else if (req.method === 'DELETE' && req.url?.match(/^\/api\/menu\/\d+$/)) {
     handleDeleteMenuItem(req, res);
+  }
+  // Analytics routes (FAREAST-10)
+  else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/orders')) {
+    handleGetOrderAnalytics(req, res);
+  } else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/popular-items')) {
+    handleGetPopularItems(req, res);
+  } else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/category-revenue')) {
+    handleGetCategoryRevenue(req, res);
+  } else if (req.method === 'GET' && req.url === '/api/analytics/dashboard') {
+    handleGetDashboardStats(req, res);
   } else {
     handleNotFound(res);
   }
@@ -306,6 +320,118 @@ function handleDeleteMenuItem(req, res) {
   } catch (error) {
     console.error('[Socket] Error deleting menu item:', error);
     sendJsonResponse(res, 500, { error: 'Failed to delete menu item' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Analytics Handlers (FAREAST-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parses query parameters from a URL
+ * @param {string} url - The URL to parse
+ * @returns {Object} - Query parameters as key-value pairs
+ */
+function parseQueryParams(url) {
+  const params = {};
+  const queryIndex = url.indexOf('?');
+  if (queryIndex === -1) return params;
+
+  const queryString = url.slice(queryIndex + 1);
+  queryString.split('&').forEach(pair => {
+    const [key, value] = pair.split('=');
+    if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+  });
+  return params;
+}
+
+/**
+ * Gets default date range (last 30 days)
+ * @returns {Object} - { startDate, endDate }
+ */
+function getDefaultDateRange() {
+  const endDate = new Date().toISOString().slice(0, 10);
+  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  return { startDate, endDate };
+}
+
+/**
+ * Handles GET /api/analytics/orders - Fetches order analytics
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetOrderAnalytics(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+
+    const analytics = getOrderAnalytics(startDate, endDate);
+    sendJsonResponse(res, 200, analytics);
+  } catch (error) {
+    console.error('[Socket] Error fetching order analytics:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch analytics' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/popular-items - Fetches popular items
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetPopularItems(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+    const limit = parseInt(params.limit, 10) || 10;
+
+    const items = getPopularItems(startDate, endDate, limit);
+    sendJsonResponse(res, 200, items);
+  } catch (error) {
+    console.error('[Socket] Error fetching popular items:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch popular items' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/category-revenue - Fetches category revenue
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetCategoryRevenue(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+
+    const revenue = getCategoryRevenue(startDate, endDate);
+    sendJsonResponse(res, 200, revenue);
+  } catch (error) {
+    console.error('[Socket] Error fetching category revenue:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch category revenue' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/dashboard - Fetches real-time dashboard stats
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetDashboardStats(req, res) {
+  try {
+    const stats = getDashboardStats();
+    sendJsonResponse(res, 200, stats);
+  } catch (error) {
+    console.error('[Socket] Error fetching dashboard stats:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch dashboard stats' });
   }
 }
 

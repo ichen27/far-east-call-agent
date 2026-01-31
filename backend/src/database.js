@@ -554,6 +554,174 @@ export function getMenuCategories() {
     .map(row => row.category);
 }
 
+// ---------------------------------------------------------------------------
+// Analytics Functions (FAREAST-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get order analytics for a date range
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} endDate - End date (YYYY-MM-DD)
+ * @returns {Object} - Analytics data
+ */
+export function getOrderAnalytics(startDate, endDate) {
+  // Daily order counts and revenue
+  const dailyStats = db.prepare(`
+    SELECT
+      DATE(created_at) as date,
+      COUNT(*) as order_count,
+      SUM(total) as revenue,
+      AVG(total) as avg_order_value
+    FROM orders
+    WHERE DATE(created_at) BETWEEN ? AND ?
+      AND status != 'cancelled'
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  `).all(startDate, endDate);
+
+  // Total summary
+  const summary = db.prepare(`
+    SELECT
+      COUNT(*) as total_orders,
+      SUM(total) as total_revenue,
+      AVG(total) as avg_order_value,
+      COUNT(DISTINCT phone_number) as unique_customers
+    FROM orders
+    WHERE DATE(created_at) BETWEEN ? AND ?
+      AND status != 'cancelled'
+  `).get(startDate, endDate);
+
+  // Order status breakdown
+  const statusBreakdown = db.prepare(`
+    SELECT
+      status,
+      COUNT(*) as count
+    FROM orders
+    WHERE DATE(created_at) BETWEEN ? AND ?
+    GROUP BY status
+  `).all(startDate, endDate);
+
+  // Hourly distribution (for peak hours analysis)
+  const hourlyDistribution = db.prepare(`
+    SELECT
+      CAST(strftime('%H', created_at) AS INTEGER) as hour,
+      COUNT(*) as order_count
+    FROM orders
+    WHERE DATE(created_at) BETWEEN ? AND ?
+      AND status != 'cancelled'
+    GROUP BY hour
+    ORDER BY hour ASC
+  `).all(startDate, endDate);
+
+  return {
+    dailyStats,
+    summary: {
+      totalOrders: summary.total_orders || 0,
+      totalRevenue: summary.total_revenue || 0,
+      avgOrderValue: summary.avg_order_value || 0,
+      uniqueCustomers: summary.unique_customers || 0,
+    },
+    statusBreakdown,
+    hourlyDistribution,
+  };
+}
+
+/**
+ * Get popular menu items analytics
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} endDate - End date (YYYY-MM-DD)
+ * @param {number} limit - Number of items to return
+ * @returns {Array} - Popular items with counts and revenue
+ */
+export function getPopularItems(startDate, endDate, limit = 10) {
+  return db.prepare(`
+    SELECT
+      oi.item_name as name,
+      SUM(oi.quantity) as total_quantity,
+      SUM(oi.total) as total_revenue,
+      COUNT(DISTINCT oi.order_id) as order_count
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    WHERE DATE(o.created_at) BETWEEN ? AND ?
+      AND o.status != 'cancelled'
+    GROUP BY oi.item_name
+    ORDER BY total_quantity DESC
+    LIMIT ?
+  `).all(startDate, endDate, limit);
+}
+
+/**
+ * Get category revenue breakdown
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} endDate - End date (YYYY-MM-DD)
+ * @returns {Array} - Revenue by category
+ */
+export function getCategoryRevenue(startDate, endDate) {
+  return db.prepare(`
+    SELECT
+      COALESCE(mi.category, 'Uncategorized') as category,
+      SUM(oi.total) as revenue,
+      SUM(oi.quantity) as quantity
+    FROM order_items oi
+    LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+    JOIN orders o ON oi.order_id = o.id
+    WHERE DATE(o.created_at) BETWEEN ? AND ?
+      AND o.status != 'cancelled'
+    GROUP BY category
+    ORDER BY revenue DESC
+  `).all(startDate, endDate);
+}
+
+/**
+ * Get real-time dashboard stats
+ * @returns {Object} - Current day stats and comparisons
+ */
+export function getDashboardStats() {
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  // Today's stats
+  const todayStats = db.prepare(`
+    SELECT
+      COUNT(*) as orders,
+      COALESCE(SUM(total), 0) as revenue,
+      COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders
+    FROM orders
+    WHERE DATE(created_at) = ?
+      AND status != 'cancelled'
+  `).get(today);
+
+  // Yesterday's stats for comparison
+  const yesterdayStats = db.prepare(`
+    SELECT
+      COUNT(*) as orders,
+      COALESCE(SUM(total), 0) as revenue
+    FROM orders
+    WHERE DATE(created_at) = ?
+      AND status != 'cancelled'
+  `).get(yesterday);
+
+  // Calculate percentage changes
+  const orderChange = yesterdayStats.orders > 0
+    ? ((todayStats.orders - yesterdayStats.orders) / yesterdayStats.orders * 100).toFixed(1)
+    : 0;
+  const revenueChange = yesterdayStats.revenue > 0
+    ? ((todayStats.revenue - yesterdayStats.revenue) / yesterdayStats.revenue * 100).toFixed(1)
+    : 0;
+
+  return {
+    today: {
+      orders: todayStats.orders,
+      revenue: todayStats.revenue,
+      pendingOrders: todayStats.pending_orders,
+    },
+    comparison: {
+      orderChange: parseFloat(orderChange),
+      revenueChange: parseFloat(revenueChange),
+    },
+  };
+}
+
 // Export the raw db for cases where direct access is needed
 // (use sparingly - prefer the atomic functions above)
 export { db };

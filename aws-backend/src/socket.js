@@ -12,9 +12,23 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 
-import { getAllOrders, updateOrderStatus } from './database.js';
+import {
+  getAllOrders,
+  updateOrderStatus,
+  getAllMenuItems,
+  getMenuItemById,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  getMenuCategories,
+  getOrderAnalytics,
+  getPopularItems,
+  getCategoryRevenue,
+  getDashboardStats,
+} from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
 import config from './config.js';
+import { getHealthStatus, getLivenessStatus, getReadinessStatus } from './health.js';
 
 // ---------------------------------------------------------------------------
 // HTTP Server Setup
@@ -50,6 +64,38 @@ function handleHttpRequest(req, res) {
     handleGetStats(req, res);
   } else if (req.method === 'PUT' && req.url?.match(/^\/api\/orders\/[\w-]+\/status$/)) {
     handleUpdateOrderStatus(req, res);
+  }
+  // Menu management routes (FAREAST-31)
+  else if (req.method === 'GET' && req.url === '/api/menu') {
+    handleGetMenuItems(req, res);
+  } else if (req.method === 'GET' && req.url === '/api/menu/categories') {
+    handleGetMenuCategories(req, res);
+  } else if (req.method === 'GET' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleGetMenuItem(req, res);
+  } else if (req.method === 'POST' && req.url === '/api/menu') {
+    handleCreateMenuItem(req, res);
+  } else if (req.method === 'PUT' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleUpdateMenuItem(req, res);
+  } else if (req.method === 'DELETE' && req.url?.match(/^\/api\/menu\/\d+$/)) {
+    handleDeleteMenuItem(req, res);
+  }
+  // Analytics routes (FAREAST-10)
+  else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/orders')) {
+    handleGetOrderAnalytics(req, res);
+  } else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/popular-items')) {
+    handleGetPopularItems(req, res);
+  } else if (req.method === 'GET' && req.url?.startsWith('/api/analytics/category-revenue')) {
+    handleGetCategoryRevenue(req, res);
+  } else if (req.method === 'GET' && req.url === '/api/analytics/dashboard') {
+    handleGetDashboardStats(req, res);
+  }
+  // Health check routes (FAREAST-11)
+  else if (req.method === 'GET' && req.url === '/health') {
+    handleHealthCheck(req, res);
+  } else if (req.method === 'GET' && req.url === '/health/live') {
+    handleLivenessCheck(req, res);
+  } else if (req.method === 'GET' && req.url === '/health/ready') {
+    handleReadinessCheck(req, res);
   } else {
     handleNotFound(res);
   }
@@ -66,7 +112,7 @@ function handleHttpRequest(req, res) {
  */
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -145,6 +191,308 @@ function handleUpdateOrderStatus(req, res) {
  */
 function handleNotFound(res) {
   sendJsonResponse(res, 404, { error: 'Not found' });
+}
+
+// ---------------------------------------------------------------------------
+// Menu Management Handlers (FAREAST-31)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles GET /api/menu - Fetches all menu items.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuItems(req, res) {
+  try {
+    const items = getAllMenuItems();
+    sendJsonResponse(res, 200, items);
+  } catch (error) {
+    console.error('[Socket] Error fetching menu items:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch menu items' });
+  }
+}
+
+/**
+ * Handles GET /api/menu/categories - Fetches all menu categories.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuCategories(req, res) {
+  try {
+    const categories = getMenuCategories();
+    sendJsonResponse(res, 200, categories);
+  } catch (error) {
+    console.error('[Socket] Error fetching categories:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch categories' });
+  }
+}
+
+/**
+ * Handles GET /api/menu/:id - Fetches a single menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetMenuItem(req, res) {
+  try {
+    const id = parseInt(req.url.split('/')[3], 10);
+    const item = getMenuItemById(id);
+    if (item) {
+      sendJsonResponse(res, 200, item);
+    } else {
+      sendJsonResponse(res, 404, { error: 'Menu item not found' });
+    }
+  } catch (error) {
+    console.error('[Socket] Error fetching menu item:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch menu item' });
+  }
+}
+
+/**
+ * Handles POST /api/menu - Creates a new menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleCreateMenuItem(req, res) {
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const item = JSON.parse(body);
+      if (!item.name || !item.category) {
+        sendJsonResponse(res, 400, { error: 'Name and category are required' });
+        return;
+      }
+      const result = createMenuItem(item);
+      if (result.success) {
+        // Broadcast menu update to all connected clients
+        orderBroadcaster.broadcast('menu_updated', { action: 'created', itemId: result.id });
+        sendJsonResponse(res, 201, { success: true, id: result.id });
+      } else {
+        sendJsonResponse(res, 500, { error: result.message });
+      }
+    } catch (error) {
+      console.error('[Socket] Error creating menu item:', error);
+      sendJsonResponse(res, 500, { error: 'Failed to create menu item' });
+    }
+  });
+}
+
+/**
+ * Handles PUT /api/menu/:id - Updates a menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleUpdateMenuItem(req, res) {
+  const id = parseInt(req.url.split('/')[3], 10);
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; });
+  req.on('end', () => {
+    try {
+      const updates = JSON.parse(body);
+      const result = updateMenuItem(id, updates);
+      if (result.success) {
+        // Broadcast menu update to all connected clients
+        orderBroadcaster.broadcast('menu_updated', { action: 'updated', itemId: id });
+        sendJsonResponse(res, 200, { success: true });
+      } else {
+        sendJsonResponse(res, 404, { error: result.message });
+      }
+    } catch (error) {
+      console.error('[Socket] Error updating menu item:', error);
+      sendJsonResponse(res, 500, { error: 'Failed to update menu item' });
+    }
+  });
+}
+
+/**
+ * Handles DELETE /api/menu/:id - Deletes a menu item.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleDeleteMenuItem(req, res) {
+  try {
+    const id = parseInt(req.url.split('/')[3], 10);
+    const result = deleteMenuItem(id);
+    if (result.success) {
+      // Broadcast menu update to all connected clients
+      orderBroadcaster.broadcast('menu_updated', { action: 'deleted', itemId: id });
+      sendJsonResponse(res, 200, { success: true });
+    } else {
+      sendJsonResponse(res, 404, { error: result.message });
+    }
+  } catch (error) {
+    console.error('[Socket] Error deleting menu item:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to delete menu item' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Analytics Handlers (FAREAST-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parses query parameters from a URL
+ * @param {string} url - The URL to parse
+ * @returns {Object} - Query parameters as key-value pairs
+ */
+function parseQueryParams(url) {
+  const params = {};
+  const queryIndex = url.indexOf('?');
+  if (queryIndex === -1) return params;
+
+  const queryString = url.slice(queryIndex + 1);
+  queryString.split('&').forEach(pair => {
+    const [key, value] = pair.split('=');
+    if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+  });
+  return params;
+}
+
+/**
+ * Gets default date range (last 30 days)
+ * @returns {Object} - { startDate, endDate }
+ */
+function getDefaultDateRange() {
+  const endDate = new Date().toISOString().slice(0, 10);
+  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  return { startDate, endDate };
+}
+
+/**
+ * Handles GET /api/analytics/orders - Fetches order analytics
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetOrderAnalytics(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+
+    const analytics = getOrderAnalytics(startDate, endDate);
+    sendJsonResponse(res, 200, analytics);
+  } catch (error) {
+    console.error('[Socket] Error fetching order analytics:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch analytics' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/popular-items - Fetches popular items
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetPopularItems(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+    const limit = parseInt(params.limit, 10) || 10;
+
+    const items = getPopularItems(startDate, endDate, limit);
+    sendJsonResponse(res, 200, items);
+  } catch (error) {
+    console.error('[Socket] Error fetching popular items:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch popular items' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/category-revenue - Fetches category revenue
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetCategoryRevenue(req, res) {
+  try {
+    const params = parseQueryParams(req.url);
+    const { startDate, endDate } = params.startDate && params.endDate
+      ? params
+      : getDefaultDateRange();
+
+    const revenue = getCategoryRevenue(startDate, endDate);
+    sendJsonResponse(res, 200, revenue);
+  } catch (error) {
+    console.error('[Socket] Error fetching category revenue:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch category revenue' });
+  }
+}
+
+/**
+ * Handles GET /api/analytics/dashboard - Fetches real-time dashboard stats
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleGetDashboardStats(req, res) {
+  try {
+    const stats = getDashboardStats();
+    sendJsonResponse(res, 200, stats);
+  } catch (error) {
+    console.error('[Socket] Error fetching dashboard stats:', error);
+    sendJsonResponse(res, 500, { error: 'Failed to fetch dashboard stats' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Health Check Handlers (FAREAST-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles GET /health - Comprehensive health check
+ * Returns detailed system health status including database, memory, and uptime.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleHealthCheck(req, res) {
+  try {
+    const health = getHealthStatus();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    sendJsonResponse(res, statusCode, health);
+  } catch (error) {
+    console.error('[Socket] Error in health check:', error);
+    sendJsonResponse(res, 503, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * Handles GET /health/live - Kubernetes-style liveness probe
+ * Indicates if the process is alive and running.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleLivenessCheck(req, res) {
+  const liveness = getLivenessStatus();
+  sendJsonResponse(res, 200, liveness);
+}
+
+/**
+ * Handles GET /health/ready - Kubernetes-style readiness probe
+ * Indicates if the service is ready to accept requests.
+ *
+ * @param {http.IncomingMessage} req - The HTTP request
+ * @param {http.ServerResponse} res - The HTTP response
+ */
+function handleReadinessCheck(req, res) {
+  try {
+    const readiness = getReadinessStatus();
+    const statusCode = readiness.status === 'ready' ? 200 : 503;
+    sendJsonResponse(res, statusCode, readiness);
+  } catch (error) {
+    sendJsonResponse(res, 503, { status: 'not_ready', error: error.message });
+  }
 }
 
 /**

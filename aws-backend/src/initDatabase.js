@@ -99,9 +99,11 @@ function createMenuItemsTable() {
 
 /**
  * Creates the orders table for storing customer orders.
+ * Note: db.exec is a better-sqlite3 method for running SQL, not shell exec.
  */
 function createOrdersTable() {
-  db.exec(`
+  // Create orders table with scheduled_pickup_time column (FAREAST-33)
+  db.prepare(`
     CREATE TABLE IF NOT EXISTS orders (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       order_number    TEXT NOT NULL UNIQUE,
@@ -110,22 +112,34 @@ function createOrdersTable() {
       order_type      TEXT DEFAULT 'pickup' CHECK (order_type IN ('pickup', 'delivery')),
       total           REAL,
       notes           TEXT DEFAULT '',
+      scheduled_pickup_time TEXT DEFAULT NULL,
       created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).run();
+
+  // Migration: Add scheduled_pickup_time column if it doesn't exist (FAREAST-33)
+  try {
+    db.prepare(`ALTER TABLE orders ADD COLUMN scheduled_pickup_time TEXT DEFAULT NULL`).run();
+    console.log('[DB] Added scheduled_pickup_time column to orders table');
+  } catch {
+    // Column already exists, ignore
+  }
 
   // Index for order lookups by order_number (frequently queried)
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`);
+  db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`).run();
 
   // Index for orders sorted by created_at (dashboard queries)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`);
+  db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`).run();
 
   // Index for filtering orders by status
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
+  db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`).run();
 
   // Composite index for daily order counting
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_created_at_date ON orders(created_at)`);
+  db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_created_at_date ON orders(created_at)`).run();
+
+  // Index for scheduled pickup time queries (FAREAST-33)
+  db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_scheduled_pickup ON orders(scheduled_pickup_time)`).run();
 }
 
 /**
@@ -412,6 +426,23 @@ const menuItems = [
   { item_number: 'CP20', name: 'Triple Delight Combo', description: 'Shrimp, chicken, and pork with mixed vegetables.', price_single: 11.15, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
 ];
 
+/**
+ * Creates the customer_profiles table for tracking returning customers.
+ */
+function createCustomerProfilesTable() {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS customer_profiles (
+      phone_number        TEXT PRIMARY KEY,
+      preferred_language  TEXT DEFAULT 'en',
+      typical_order_items TEXT DEFAULT '[]',
+      last_order_date     TEXT DEFAULT NULL,
+      order_count         INTEGER DEFAULT 0,
+      notes               TEXT DEFAULT ''
+    )
+  `).run();
+  console.log('[DB] customer_profiles table ready');
+}
+
 // ---------------------------------------------------------------------------
 // Data Population
 // ---------------------------------------------------------------------------
@@ -467,6 +498,7 @@ function initializeDatabase() {
   createMenuItemsTable();
   createOrdersTable();
   createOrderItemsTable();
+  createCustomerProfilesTable();
 
   // Populate menu data
   populateMenuItems();

@@ -1,17 +1,27 @@
-/**
- * orderBroadcaster.js - Send orders to Vercel API
- *
- * This module handles sending orders to the Vercel serverless backend
- * which stores them in Postgres and serves them to the frontend.
- */
+// orderBroadcaster.js - Reliable order broadcasting with queue and retry logic
+// This module handles WebSocket broadcasting with guaranteed delivery semantics
+
+import { WebSocket } from 'ws';
 
 /**
- * OrderBroadcaster - Sends orders to Vercel API with retry logic
+ * OrderBroadcaster - Manages reliable order broadcasting to WebSocket clients
+ *
+ * Features:
+ * - Queues orders when no clients are connected
+ * - Retries failed sends
+ * - Provides delivery confirmation
+ * - Handles client disconnections gracefully
  */
 class OrderBroadcaster {
   constructor() {
-    // Vercel API URL - configure via environment variable
-    this.apiUrl = process.env.VERCEL_API_URL || 'http://localhost:3000';
+    // Set of connected WebSocket clients
+    this.clients = new Set();
+
+    // Queue for orders that couldn't be delivered (no clients connected)
+    this.pendingQueue = [];
+
+    // Maximum queue size to prevent memory issues
+    this.maxQueueSize = 100;
 
     // Retry configuration
     this.maxRetries = 3;
@@ -19,101 +29,228 @@ class OrderBroadcaster {
   }
 
   /**
-   * Configure the Vercel API URL
-   * @param {string} url - The Vercel API base URL
+   * Register a new WebSocket client
+   * @param {WebSocket} ws - The WebSocket connection
    */
-  setApiUrl(url) {
-    this.apiUrl = url;
-    console.log(`[OrderBroadcaster] API URL set to: ${url}`);
+  addClient(ws) {
+    this.clients.add(ws);
+    console.log(`[OrderBroadcaster] Client connected. Total clients: ${this.clients.size}`);
+
+    // Send any queued orders to the new client
+    this._flushQueueToClient(ws);
   }
 
   /**
-   * Send a new order to the Vercel API
-   * @param {Object} order - The order data to send
-   * @returns {Promise<{success: boolean, orderNumber?: string, error?: string}>}
+   * Remove a disconnected client
+   * @param {WebSocket} ws - The WebSocket connection
+   */
+  removeClient(ws) {
+    this.clients.delete(ws);
+    console.log(`[OrderBroadcaster] Client disconnected. Total clients: ${this.clients.size}`);
+  }
+
+  /**
+   * Get the number of connected clients
+   * @returns {number}
+   */
+  getClientCount() {
+    return this.clients.size;
+  }
+
+  /**
+   * Broadcast a new order to all connected clients
+   * @param {Object} order - The order data to broadcast
+   * @returns {Promise<{success: boolean, sentCount: number, errors: Array}>}
    */
   async broadcastOrder(order) {
-    const orderPayload = {
-      phoneNumber: order.phoneNumber,
-      total: order.total,
-      notes: order.notes || '',
-      items: order.items.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        size: item.size || null,
-        price: item.price || item.unitPrice,
-        modifications: item.modifications || ''
-      }))
+    const orderData = {
+      type: 'new_order',
+      payload: {
+        orderNumber: order.orderNumber,
+        phoneNumber: order.phoneNumber,
+        items: order.items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          size: item.size || null,
+          modifications: item.modifications || ''
+        })),
+        notes: order.notes || '',
+        time: order.time || new Date().toISOString(),
+        date: (order.time || new Date().toISOString()).split('T')[0],
+        total: order.total,
+        status: order.status || 'pending'
+      }
     };
 
-    console.log(`[OrderBroadcaster] Sending order to Vercel API: ${this.apiUrl}/api/orders`);
+    const message = JSON.stringify(orderData);
 
-    try {
-      const result = await this._sendWithRetry(orderPayload);
-      console.log(`[OrderBroadcaster] Order sent successfully: #${result.orderNumber}`);
-      return {
-        success: true,
-        orderNumber: result.orderNumber
-      };
-    } catch (error) {
-      console.error(`[OrderBroadcaster] Failed to send order:`, error.message);
-      return {
-        success: false,
-        error: error.message
-      };
+    // If no clients connected, queue the order
+    if (this.clients.size === 0) {
+      this._queueOrder(orderData);
+      console.log(`[OrderBroadcaster] No clients connected. Order ${order.orderNumber} queued.`);
+      return { success: true, sentCount: 0, queued: true, errors: [] };
     }
+
+    // Broadcast to all connected clients
+    const results = await this._broadcastToAll(message);
+
+    console.log(`[OrderBroadcaster] Order ${order.orderNumber} broadcast to ${results.sentCount}/${this.clients.size} client(s)`);
+
+    return results;
   }
 
   /**
-   * Send order with retry logic
+   * Broadcast a message to all clients with error handling
    * @private
    */
-  async _sendWithRetry(payload, attempt = 1) {
-    try {
-      const response = await fetch(`${this.apiUrl}/api/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+  async _broadcastToAll(message) {
+    const errors = [];
+    let sentCount = 0;
+    const sendPromises = [];
+
+    for (const client of this.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        sendPromises.push(
+          this._sendWithRetry(client, message)
+            .then(() => { sentCount++; })
+            .catch(err => { errors.push(err); })
+        );
+      } else {
+        // Client is not in OPEN state, remove it
+        this.clients.delete(client);
+      }
+    }
+
+    await Promise.allSettled(sendPromises);
+
+    return {
+      success: errors.length === 0,
+      sentCount,
+      errors
+    };
+  }
+
+  /**
+   * Send a message to a client with retry logic
+   * @private
+   */
+  async _sendWithRetry(client, message, attempt = 1) {
+    return new Promise((resolve, reject) => {
+      // Check if client is still connected
+      if (client.readyState !== WebSocket.OPEN) {
+        reject(new Error('Client disconnected'));
+        return;
+      }
+
+      // Use callback form of send for error handling
+      client.send(message, (err) => {
+        if (err) {
+          if (attempt < this.maxRetries) {
+            // Retry after delay
+            setTimeout(() => {
+              this._sendWithRetry(client, message, attempt + 1)
+                .then(resolve)
+                .catch(reject);
+            }, this.retryDelayMs * attempt);
+          } else {
+            reject(new Error(`Failed after ${this.maxRetries} attempts: ${err.message}`));
+          }
+        } else {
+          resolve();
+        }
       });
+    });
+  }
 
-      const data = await response.json();
+  /**
+   * Queue an order for later delivery
+   * @private
+   */
+  _queueOrder(orderData) {
+    // Prevent queue from growing indefinitely
+    if (this.pendingQueue.length >= this.maxQueueSize) {
+      // Remove oldest orders
+      this.pendingQueue.shift();
+      console.warn('[OrderBroadcaster] Queue full, dropping oldest order');
+    }
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+    this.pendingQueue.push({
+      data: orderData,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Send all queued orders to a newly connected client
+   * @private
+   */
+  async _flushQueueToClient(client) {
+    if (this.pendingQueue.length === 0) return;
+
+    console.log(`[OrderBroadcaster] Flushing ${this.pendingQueue.length} queued orders to new client`);
+
+    for (const queued of this.pendingQueue) {
+      // Only send orders from last 24 hours
+      const ageMs = Date.now() - queued.timestamp;
+      if (ageMs < 24 * 60 * 60 * 1000) {
+        try {
+          await this._sendWithRetry(client, JSON.stringify(queued.data));
+        } catch (err) {
+          console.error(`[OrderBroadcaster] Failed to send queued order: ${err.message}`);
+        }
       }
+    }
 
-      return {
-        orderNumber: data.order?.orderNumber,
-        order: data.order
-      };
-    } catch (error) {
-      if (attempt < this.maxRetries) {
-        console.log(`[OrderBroadcaster] Retry ${attempt}/${this.maxRetries} after ${this.retryDelayMs}ms`);
-        await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * attempt));
-        return this._sendWithRetry(payload, attempt + 1);
+    // Clear the queue after flushing
+    this.pendingQueue = [];
+  }
+
+  /**
+   * Broadcast a generic message to all clients
+   * @param {string} type - Message type
+   * @param {Object} payload - Message payload
+   */
+  async broadcast(type, payload) {
+    const message = JSON.stringify({ type, payload });
+
+    for (const client of this.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message, (err) => {
+          if (err) {
+            console.error(`[OrderBroadcaster] Broadcast error: ${err.message}`);
+          }
+        });
       }
-      throw new Error(`Failed after ${this.maxRetries} attempts: ${error.message}`);
     }
   }
 
   /**
-   * Health check - verify connection to Vercel API
-   * @returns {Promise<boolean>}
+   * Broadcast an order update (modification, cancellation, etc.) - FAREAST-5
+   * @param {string} orderNumber - The order number being updated
+   * @param {string} updateType - Type of update ('item_added', 'item_removed', 'cancelled', 'modified')
+   * @param {Object} details - Details about the update
    */
-  async healthCheck() {
-    try {
-      const response = await fetch(`${this.apiUrl}/api/orders`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      return response.ok;
-    } catch {
-      return false;
+  async broadcastOrderUpdate(orderNumber, updateType, details) {
+    const updateData = {
+      type: 'order_update',
+      payload: {
+        orderNumber,
+        updateType,
+        ...details,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const message = JSON.stringify(updateData);
+
+    console.log(`[OrderBroadcaster] Broadcasting order update: ${orderNumber} - ${updateType}`);
+
+    if (this.clients.size === 0) {
+      console.log(`[OrderBroadcaster] No clients connected for order update`);
+      return { success: true, sentCount: 0, errors: [] };
     }
+
+    return this._broadcastToAll(message);
   }
 }
 

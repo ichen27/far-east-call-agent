@@ -53,6 +53,12 @@ export const submitOrderSchema = z.object({
 
   /** Total price including tax */
   totalPrice: z.number().nonnegative().describe('Total price of the order including tax'),
+
+  /** Scheduled pickup time (FAREAST-33) - ISO string or empty for ASAP */
+  scheduledPickupTime: z
+    .string()
+    .optional()
+    .describe('Scheduled pickup time as ISO string (e.g., "2024-01-15T18:30:00"), or omit/empty for ASAP pickup'),
 });
 
 /**

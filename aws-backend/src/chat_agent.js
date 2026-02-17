@@ -11,10 +11,23 @@ import express from 'express';
 import { createServer } from 'http';
 import { Agent, run, tool } from '@openai/agents';
 
-import { createOrderAtomic } from './database.js';
+import Twilio from 'twilio';
+import {
+  createOrderAtomic,
+  getOrdersByPhoneNumber,
+  addItemToOrder,
+  removeItemFromOrder,
+  cancelOrder,
+} from './database.js';
 import { CHAT_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
+import { orderBroadcaster } from './orderBroadcaster.js';
 import config from './config.js';
+
+// Twilio client for SMS (only initialized if credentials exist)
+const twilioClient = config.credentials.twilioAccountSid && config.credentials.twilioAuthToken
+  ? Twilio(config.credentials.twilioAccountSid, config.credentials.twilioAuthToken)
+  : null;
 
 // ---------------------------------------------------------------------------
 // Session Management
@@ -50,14 +63,16 @@ const submitOrder = tool({
    * @param {Array} params.items - Array of order items
    * @param {string} [params.notes] - Order notes
    * @param {number} params.totalPrice - Total price including tax
+   * @param {string} [params.scheduledPickupTime] - Scheduled pickup time (ISO string)
    * @returns {Promise<string>} Success or failure message
    */
-  execute: async ({ phoneNumber, items, notes, totalPrice }) => {
+  execute: async ({ phoneNumber, items, notes, totalPrice, scheduledPickupTime }) => {
     try {
       const { orderNumber } = createOrderAtomic({
         phoneNumber,
         totalPrice,
         notes: notes && notes.trim() ? notes : '',
+        scheduledPickupTime: scheduledPickupTime || null,
         items: items.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -67,13 +82,151 @@ const submitOrder = tool({
         })),
       });
 
-      logOrderSubmission(orderNumber, phoneNumber, items, totalPrice);
+      logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, scheduledPickupTime);
 
-      return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. Ready for pickup in ${config.restaurant.estimatedPickupTime}.`;
+      // Broadcast order to frontend dashboard (same as voice agent)
+      await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime);
+
+      // Send SMS confirmation (FAREAST-19)
+      await sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime);
+
+      // Format pickup time message
+      const pickupMsg = scheduledPickupTime
+        ? `Scheduled pickup at ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : `Ready for pickup in ${config.restaurant.estimatedPickupTime}`;
+
+      return `Order ${orderNumber} submitted successfully. Total: $${totalPrice.toFixed(2)}. ${pickupMsg}.`;
     } catch (error) {
       console.error('[Chat] Failed to save order:', error);
       return `Order recorded. Total: $${totalPrice.toFixed(2)}`;
     }
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Order Modification Tools (FAREAST-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Look up existing orders by phone number.
+ */
+const lookupOrder = tool({
+  name: 'lookup_order',
+  description:
+    'Look up existing orders by phone number. Use this when a customer says they want to change, modify, ' +
+    'add to, or cancel a recent order. Ask for their phone number first, then use this tool.',
+  parameters: {
+    type: 'object',
+    properties: {
+      phoneNumber: {
+        type: 'string',
+        description: 'The customer phone number to look up orders for',
+      },
+    },
+    required: ['phoneNumber'],
+  },
+  execute: async ({ phoneNumber }) => {
+    console.log(`[Chat] Looking up orders for phone: ${phoneNumber}`);
+    const orders = getOrdersByPhoneNumber(phoneNumber);
+
+    if (orders.length === 0) {
+      return 'No active orders found for this phone number. The customer may need to place a new order.';
+    }
+
+    const orderSummaries = orders.map(order => {
+      const itemList = order.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+      return `Order #${order.orderNumber} (${order.status}): ${itemList}. Total: $${order.total.toFixed(2)}`;
+    }).join('\n');
+
+    console.log(`[Chat] Found ${orders.length} order(s) for ${phoneNumber}`);
+    return `Found ${orders.length} order(s):\n${orderSummaries}\n\nAsk the customer which order they want to modify and what changes they'd like to make.`;
+  },
+});
+
+/**
+ * Add an item to an existing order.
+ */
+const addToOrderTool = tool({
+  name: 'add_to_order',
+  description: 'Add an item to an existing order. Use this after looking up the order with lookup_order.',
+  parameters: {
+    type: 'object',
+    properties: {
+      orderNumber: { type: 'string', description: 'The order number to add items to' },
+      itemName: { type: 'string', description: 'Name of the menu item to add' },
+      quantity: { type: 'number', description: 'Quantity of the item' },
+      size: { type: 'string', description: 'Size of the item (Pt, Qt, etc.)' },
+      price: { type: 'number', description: 'Price per item' },
+      modifications: { type: 'string', description: 'Any special requests or modifications' },
+    },
+    required: ['orderNumber', 'itemName', 'quantity', 'price'],
+  },
+  execute: async ({ orderNumber, itemName, quantity, size, price, modifications }) => {
+    console.log(`[Chat] Adding ${quantity}x ${itemName} to order ${orderNumber}`);
+    const result = addItemToOrder(orderNumber, {
+      name: itemName,
+      quantity,
+      size: size || null,
+      price,
+      modifications: modifications || '',
+    });
+
+    if (result.success) {
+      orderBroadcaster.broadcastOrderUpdate(orderNumber, 'item_added', { itemName, quantity, newTotal: result.newTotal });
+      return `${result.message}. New total is $${result.newTotal.toFixed(2)}.`;
+    }
+    return result.message;
+  },
+});
+
+/**
+ * Remove an item from an existing order.
+ */
+const removeFromOrderTool = tool({
+  name: 'remove_from_order',
+  description: 'Remove an item from an existing order. Use this after looking up the order with lookup_order.',
+  parameters: {
+    type: 'object',
+    properties: {
+      orderNumber: { type: 'string', description: 'The order number to remove items from' },
+      itemName: { type: 'string', description: 'Name of the item to remove (partial match is fine)' },
+      quantity: { type: 'number', description: 'Quantity to remove. Omit to remove all of that item.' },
+    },
+    required: ['orderNumber', 'itemName'],
+  },
+  execute: async ({ orderNumber, itemName, quantity }) => {
+    console.log(`[Chat] Removing ${quantity || 'all'} ${itemName} from order ${orderNumber}`);
+    const result = removeItemFromOrder(orderNumber, itemName, quantity || null);
+
+    if (result.success) {
+      orderBroadcaster.broadcastOrderUpdate(orderNumber, 'item_removed', { itemName, newTotal: result.newTotal });
+      return `${result.message}. New total is $${result.newTotal.toFixed(2)}.`;
+    }
+    return result.message;
+  },
+});
+
+/**
+ * Cancel an entire order.
+ */
+const cancelOrderTool = tool({
+  name: 'cancel_order',
+  description: 'Cancel an entire order. Use this when a customer wants to cancel their order completely. Confirm with the customer before cancelling.',
+  parameters: {
+    type: 'object',
+    properties: {
+      orderNumber: { type: 'string', description: 'The order number to cancel' },
+    },
+    required: ['orderNumber'],
+  },
+  execute: async ({ orderNumber }) => {
+    console.log(`[Chat] Cancelling order ${orderNumber}`);
+    const result = cancelOrder(orderNumber);
+
+    if (result.success) {
+      orderBroadcaster.broadcastOrderUpdate(orderNumber, 'cancelled', {});
+    }
+    return result.message;
   },
 });
 
@@ -88,7 +241,7 @@ const chatAgent = new Agent({
   name: 'Far East Order Assistant',
   instructions: CHAT_AGENT_INSTRUCTIONS,
   model: config.chatAgent.model,
-  tools: [submitOrder],
+  tools: [submitOrder, lookupOrder, addToOrderTool, removeFromOrderTool, cancelOrderTool],
 });
 
 // ---------------------------------------------------------------------------
@@ -188,8 +341,9 @@ app.post('/chat', async (req, res) => {
  * @param {string} phoneNumber - Customer phone number
  * @param {Array} items - Array of order items
  * @param {number} totalPrice - Total price
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
  */
-function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice) {
+function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, scheduledPickupTime) {
   console.log('\n[Chat] NEW ORDER SAVED TO DATABASE:');
   console.log(`   Order #: ${orderNumber}`);
   console.log(`   Phone: ${phoneNumber}`);
@@ -201,7 +355,8 @@ function logOrderSubmission(orderNumber, phoneNumber, items, totalPrice) {
       `     ${i + 1}. ${item.name}${sizeDisplay} x${item.quantity} @ $${item.price.toFixed(2)}${modsDisplay}`
     );
   });
-  console.log(`   Total: $${totalPrice.toFixed(2)}\n`);
+  console.log(`   Total: $${totalPrice.toFixed(2)}`);
+  console.log(`   Pickup: ${scheduledPickupTime ? new Date(scheduledPickupTime).toLocaleTimeString() : 'ASAP (10-15 min)'}\n`);
 }
 
 /**
@@ -254,6 +409,99 @@ function extractResponseText(result) {
   }
 
   return responseText;
+}
+
+/**
+ * Broadcasts a new order to all connected frontend clients.
+ *
+ * @param {string} orderNumber - Generated order number
+ * @param {string} phoneNumber - Customer phone number
+ * @param {Array} items - Array of order items
+ * @param {string} notes - Order notes
+ * @param {number} totalPrice - Total price
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
+ */
+async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime) {
+  await orderBroadcaster.broadcastOrder({
+    orderNumber,
+    phoneNumber,
+    items: items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      size: item.size === 'N/A' ? null : item.size,
+      price: item.price,
+      modifications: item.modifications || '',
+    })),
+    notes: notes || '',
+    totalPrice,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    scheduledPickupTime: scheduledPickupTime || null,
+    source: 'chat', // Distinguish chat orders from voice orders
+  });
+}
+
+/**
+ * Sends SMS order confirmation to customer (FAREAST-19).
+ *
+ * @param {string} phoneNumber - Customer phone number
+ * @param {string} orderNumber - Order number
+ * @param {Array} items - Array of order items
+ * @param {number} totalPrice - Total price including tax
+ * @param {string|null} scheduledPickupTime - Scheduled pickup time (ISO string)
+ * @returns {Promise<void>}
+ */
+async function sendOrderConfirmationSMS(phoneNumber, orderNumber, items, totalPrice, scheduledPickupTime) {
+  // Skip if SMS not configured
+  if (!twilioClient || !config.sms?.enabled || !config.sms?.fromNumber) {
+    console.log('[Chat SMS] SMS notifications disabled');
+    return;
+  }
+
+  // Format phone number for Twilio
+  let formattedPhone = phoneNumber.replace(/\D/g, '');
+  if (formattedPhone.length === 10) {
+    formattedPhone = `+1${formattedPhone}`;
+  } else if (formattedPhone.length === 11 && formattedPhone.startsWith('1')) {
+    formattedPhone = `+${formattedPhone}`;
+  } else {
+    formattedPhone = `+${formattedPhone}`;
+  }
+
+  const itemList = items
+    .map((item) => `• ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`)
+    .slice(0, 5)
+    .join('\n');
+  const moreItems = items.length > 5 ? `\n...and ${items.length - 5} more items` : '';
+
+  // Format pickup time (FAREAST-33)
+  const pickupTimeStr = scheduledPickupTime
+    ? `Scheduled: ${new Date(scheduledPickupTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+    : `Ready in ${config.restaurant.estimatedPickupTime}`;
+
+  const message = `🍜 Far East Kitchen - Order Confirmed!
+
+Order #${orderNumber}
+${itemList}${moreItems}
+
+Total: $${totalPrice.toFixed(2)}
+Pickup: ${pickupTimeStr}
+
+📍 ${config.restaurant.address}
+📞 ${config.restaurant.phone}
+
+Thank you for your order!`;
+
+  try {
+    await twilioClient.messages.create({
+      body: message,
+      from: config.sms.fromNumber,
+      to: formattedPhone,
+    });
+    console.log(`[Chat SMS] Confirmation sent to ${formattedPhone} for order ${orderNumber}`);
+  } catch (error) {
+    console.error(`[Chat SMS] Failed to send confirmation:`, error.message);
+  }
 }
 
 /**

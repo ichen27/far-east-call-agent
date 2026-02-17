@@ -44,7 +44,7 @@ function validateEnvVars(required, optional) {
 // Validate environment variables on module load
 validateEnvVars(
   ['OPENAI_API_KEY'],
-  ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN']
+  ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID']
 );
 
 /**
@@ -69,9 +69,6 @@ export const ports = {
 export const urls = {
   /** WebSocket URL for Twilio media stream connection */
   twilioMediaStream: process.env.TWILIO_MEDIA_STREAM_URL || 'wss://fe-local-call.fareastbackend.us/media-stream',
-
-  /** Vercel API URL for order submission */
-  vercelApi: process.env.VERCEL_API_URL || 'http://localhost:5173',
 };
 
 /**
@@ -114,18 +111,41 @@ export const chatAgent = {
 export const voiceAgent = {
   /** Delay before hanging up after agent requests (milliseconds) */
   hangUpDelay: parseInt(process.env.HANGUP_DELAY, 10) || 5000,
+
+  /** Maximum call duration in milliseconds (default: 10 minutes) */
+  maxCallDuration: parseInt(process.env.MAX_CALL_DURATION, 10) || 10 * 60 * 1000,
+
+  /** Warning time before call ends in milliseconds (default: 1 minute before max) */
+  callTimeoutWarning: parseInt(process.env.CALL_TIMEOUT_WARNING, 10) || 9 * 60 * 1000,
+
+  /** Idle timeout - end call if no activity for this duration (default: 2 minutes) */
+  idleTimeout: parseInt(process.env.IDLE_TIMEOUT, 10) || 2 * 60 * 1000,
 };
 
 /**
- * Database configuration.
+ * Database configuration (FAREAST-21: Optimized for 50 concurrent calls).
+ *
+ * SQLite with WAL mode can handle many concurrent readers with one writer.
+ * These settings are optimized for high-concurrency restaurant order taking:
+ * - WAL mode: Multiple readers, single writer without blocking
+ * - Busy timeout: Wait for locks instead of failing immediately
+ * - Large cache: Reduces disk I/O for repeated queries
+ * - Memory-mapped I/O: Faster reads through OS page cache
+ *
  * @constant {Object}
  */
 export const database = {
   /** SQLite database file path (absolute path resolved from config directory) */
   path: process.env.DB_PATH || join(__dirname, 'fareast.db'),
 
-  /** Busy timeout for concurrent access (milliseconds) */
+  /** Busy timeout for concurrent access (milliseconds) - handles write contention */
   busyTimeout: parseInt(process.env.DB_BUSY_TIMEOUT, 10) || 5000,
+
+  /** Cache size in KB (negative = KB, positive = pages). 64MB for frequent queries */
+  cacheSize: parseInt(process.env.DB_CACHE_SIZE, 10) || -64000,
+
+  /** Memory-mapped I/O size in bytes. 256MB for fast reads */
+  mmapSize: parseInt(process.env.DB_MMAP_SIZE, 10) || 268435456,
 };
 
 /**
@@ -145,6 +165,59 @@ export const restaurant = {
 };
 
 /**
+ * SMS notification configuration.
+ * @constant {Object}
+ */
+export const sms = {
+  /** Twilio phone number to send SMS from */
+  fromNumber: process.env.TWILIO_PHONE_NUMBER || '',
+
+  /** Whether SMS confirmations are enabled */
+  enabled: process.env.SMS_ENABLED === 'true' || !!process.env.TWILIO_PHONE_NUMBER,
+};
+
+/**
+ * ElevenLabs TTS configuration.
+ * Optional — enables natural-voice fallback when OpenAI Realtime is unavailable.
+ * @constant {Object}
+ */
+export const elevenlabs = {
+  /** ElevenLabs API key */
+  apiKey: process.env.ELEVENLABS_API_KEY || '',
+
+  /** ElevenLabs voice ID to use for synthesis */
+  voiceId: process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL',
+
+  /** Whether ElevenLabs TTS is available */
+  enabled: !!process.env.ELEVENLABS_API_KEY,
+};
+
+/**
+ * Call transfer configuration (FAREAST-4).
+ * @constant {Object}
+ */
+export const callTransfer = {
+  /** Staff phone number to transfer calls to when customer requests human */
+  staffPhoneNumber: process.env.STAFF_PHONE_NUMBER || '',
+
+  /** Whether call transfer is enabled */
+  enabled: !!process.env.STAFF_PHONE_NUMBER,
+
+  /** Timeout in seconds to wait for staff to answer (default: 30s) */
+  timeout: parseInt(process.env.TRANSFER_TIMEOUT, 10) || 30,
+};
+
+/**
+ * Audio processing configuration.
+ * @constant {Object}
+ */
+export const audioProcessing = {
+  /** Amplitude threshold for the noise gate (0-32767 for 16-bit PCM).
+   *  Frames whose peak amplitude falls below this value are silenced. */
+  noiseGateThreshold: parseInt(process.env.NOISE_GATE_THRESHOLD, 10) || 200,
+};
+
+/**
  * Full configuration object for convenience.
  * @constant {Object}
  */
@@ -156,6 +229,10 @@ const config = {
   voiceAgent,
   database,
   restaurant,
+  sms,
+  callTransfer,
+  elevenlabs,
+  audioProcessing,
 };
 
 export default config;

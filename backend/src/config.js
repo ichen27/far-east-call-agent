@@ -208,6 +208,16 @@ export const callTransfer = {
 };
 
 /**
+ * Audio processing configuration.
+ * @constant {Object}
+ */
+export const audioProcessing = {
+  /** Amplitude threshold for the noise gate (0-32767 for 16-bit PCM).
+   *  Frames whose peak amplitude falls below this value are silenced. */
+  noiseGateThreshold: parseInt(process.env.NOISE_GATE_THRESHOLD, 10) || 200,
+};
+
+/**
  * Full configuration object for convenience.
  * @constant {Object}
  */
@@ -222,6 +232,7 @@ const config = {
   sms,
   callTransfer,
   elevenlabs,
+  audioProcessing,
 };
 
 export default config;

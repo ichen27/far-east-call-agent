@@ -32,6 +32,7 @@ import config from './config.js';
 import { withRetry } from './retry.js';
 import { buildTwimlWithTTS, registerTTSRoutes } from './ttsProvider.js';
 import { walAppendPending, walCommit, generateWalId, replayPendingOrders } from './orderWAL.js';
+import { processAudioFrame } from './noiseFilter.js';
 import {
   recordSpeechEnd,
   recordResponseStart,
@@ -640,13 +641,37 @@ wss.on('connection', (twilioWs) => {
     }
   });
 
-  // Listen for Twilio stream events
+  // Listen for Twilio stream events (start, media, stop)
   twilioWs.on('message', (data) => {
     // Update activity timestamp for idle detection
     lastActivityTime = Date.now();
 
     try {
       const msg = JSON.parse(data);
+
+      // Apply noise filtering to media frames before they reach the transport layer.
+      // Twilio sends base64-encoded 8-bit μ-law audio; we decode to 16-bit PCM,
+      // run the high-pass filter and noise gate, then re-encode and patch the message.
+      if (msg.event === 'media' && msg.media?.payload) {
+        const mulawBuf = Buffer.from(msg.media.payload, 'base64');
+        // Convert μ-law bytes to signed 16-bit PCM
+        const pcmBuf = Buffer.allocUnsafe(mulawBuf.length * 2);
+        for (let i = 0; i < mulawBuf.length; i++) {
+          pcmBuf.writeInt16LE(mulawToLinear(mulawBuf[i]), i * 2);
+        }
+        // Run noise gate + high-pass filter
+        const filteredPcm = processAudioFrame(pcmBuf);
+        // Convert back to μ-law
+        const filteredMulaw = Buffer.allocUnsafe(mulawBuf.length);
+        for (let i = 0; i < mulawBuf.length; i++) {
+          filteredMulaw[i] = linearToMulaw(filteredPcm.readInt16LE(i * 2));
+        }
+        msg.media.payload = filteredMulaw.toString('base64');
+        // Re-emit the modified message so the transport layer sees filtered audio
+        twilioWs.emit('message', JSON.stringify(msg));
+        return;
+      }
+
       if (msg.event === 'start' && msg.start?.customParameters?.callSid) {
         callSid = msg.start.customParameters.callSid;
         activeCalls.set(callSid, {
@@ -654,6 +679,29 @@ wss.on('connection', (twilioWs) => {
           status: 'active',
         });
         console.log(`[Voice] Call started: ${callSid}. Active calls: ${activeCalls.size}`);
+
+        // Look up customer profile and inject personalized context into the session
+        const callerPhone = callerPhoneMap.get(callSid);
+        if (callerPhone) {
+          try {
+            const customerProfile = getCustomerProfile(callerPhone);
+            if (customerProfile && customerProfile.orderCount > 0) {
+              console.log(`[Voice] Returning customer: ${callerPhone} (${customerProfile.orderCount} orders)`);
+              const personalizedText = getPersonalizedInstructions(customerProfile);
+              // Extract only the returning-customer context block appended by getPersonalizedInstructions
+              const contextStart = personalizedText.indexOf('\n# Returning Customer Context');
+              if (contextStart !== -1) {
+                const contextBlock = personalizedText.slice(contextStart).trim();
+                realtimeSession.sendMessage({
+                  role: 'user',
+                  content: [{ type: 'input_text', text: `[SYSTEM CONTEXT: ${contextBlock}]` }],
+                });
+              }
+            }
+          } catch (profileErr) {
+            console.error('[Voice] Failed to load customer profile:', profileErr.message);
+          }
+        }
       }
       // Track media events as activity
       if (msg.event === 'media') {
@@ -679,7 +727,7 @@ wss.on('connection', (twilioWs) => {
   const removeFromOrder = createRemoveFromOrderTool();
   const cancelOrderTool = createCancelOrderTool();
 
-  // Create the AI agent
+  // Create the AI agent with default instructions; personalization injected after start event
   const agent = new RealtimeAgent({
     name: 'Phone Assistant',
     instructions: VOICE_AGENT_INSTRUCTIONS,
@@ -864,6 +912,43 @@ async function broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, 
  */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Decodes a single μ-law (G.711) byte to a signed 16-bit linear PCM sample.
+ *
+ * @param {number} uByte - μ-law encoded byte (0-255)
+ * @returns {number} Signed 16-bit PCM sample
+ */
+function mulawToLinear(uByte) {
+  uByte = ~uByte & 0xff;
+  const sign = uByte & 0x80;
+  const exponent = (uByte >> 4) & 0x07;
+  const mantissa = uByte & 0x0f;
+  let sample = ((mantissa << 1) + 33) << exponent;
+  sample -= 33;
+  return sign ? -sample : sample;
+}
+
+/**
+ * Encodes a signed 16-bit linear PCM sample to a μ-law (G.711) byte.
+ *
+ * @param {number} sample - Signed 16-bit PCM sample
+ * @returns {number} μ-law encoded byte (0-255)
+ */
+function linearToMulaw(sample) {
+  const MAX = 32767;
+  const BIAS = 0x84;
+  const sign = sample < 0 ? 0x80 : 0;
+  if (sample < 0) sample = -sample;
+  if (sample > MAX) sample = MAX;
+  sample += BIAS;
+  let exponent = 7;
+  for (let exp = 0; exp < 7; exp++) {
+    if (sample <= (0x1f << (exp + 1))) { exponent = exp; break; }
+  }
+  const mantissa = (sample >> (exponent + 3)) & 0x0f;
+  return ~(sign | (exponent << 4) | mantissa) & 0xff;
 }
 
 /**

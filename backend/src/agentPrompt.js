@@ -580,7 +580,7 @@ COMBINATION PLATES (1-20) all come with Pork Fried Rice + Egg Roll for one fixed
  * @returns {string} Complete voice agent instructions, possibly with returning-customer context
  */
 export function getPersonalizedInstructions(customerProfile) {
-  const base = VOICE_AGENT_INSTRUCTIONS;
+  const base = createAgentInstructions({ channel: 'voice' });
 
   if (!customerProfile || customerProfile.orderCount === 0) {
     return base;

@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node agentScenarioTest.js",
+    "test": "node --test callHandler.test.js",
     "test:scenarios": "node agentScenarioTest.js",
     "test:limit": "node agentScenarioTest.js --limit",
+    "test:call": "node --test callHandler.test.js",
     "dev": "node server.js",
     "start": "node server.js"
   },

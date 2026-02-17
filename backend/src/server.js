@@ -27,6 +27,7 @@ import { VOICE_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
 import config from './config.js';
 import { withRetry } from './retry.js';
+import { buildTwimlWithTTS, registerTTSRoutes } from './ttsProvider.js';
 import { walAppendPending, walCommit, generateWalId, replayPendingOrders } from './orderWAL.js';
 import {
   recordSpeechEnd,
@@ -70,6 +71,9 @@ const server = createServer(app);
 // Mount latency metrics endpoint
 app.use(metricsRouter);
 
+// Register TTS audio serving route (used by ElevenLabs fallback)
+registerTTSRoutes(app);
+
 // ---------------------------------------------------------------------------
 // AI Failover Helper
 // ---------------------------------------------------------------------------
@@ -91,18 +95,26 @@ async function handleAIFailure(callSid, error) {
     return;
   }
 
-  // --- Attempt 1: Transfer to staff ---
+  // Derive the public HTTPS base URL from the configured media stream WSS URL
+  // e.g. wss://fe-local-call.fareastbackend.us/media-stream -> https://fe-local-call.fareastbackend.us
+  const baseUrl = config.urls.twilioMediaStream
+    .replace(/^wss?:\/\//, 'https://')
+    .replace(/\/media-stream.*$/, '');
+
+  // --- Attempt 1: Transfer to staff (with TTS for the hold message) ---
   if (config.callTransfer.enabled) {
     try {
-      const transferTwiml = `
-        <Response>
-          <Say>I'm having some trouble. Let me connect you with a staff member right away. Please hold.</Say>
-          <Dial timeout="${config.callTransfer.timeout}" callerId="${config.sms.fromNumber || '+16077971166'}">
-            ${config.callTransfer.staffPhoneNumber}
-          </Dial>
-          <Say>We're sorry, no one is available right now. Please call us back during business hours. Goodbye.</Say>
-        </Response>
-      `;
+      const dialSuffix =
+        `<Dial timeout="${config.callTransfer.timeout}" callerId="${config.sms.fromNumber || '+16077971166'}">` +
+        `${config.callTransfer.staffPhoneNumber}</Dial>` +
+        `<Say voice="Polly.Joanna">We're sorry, no one is available right now. Please call us back during business hours. Goodbye.</Say>`;
+
+      const transferTwiml = await buildTwimlWithTTS(
+        "I'm having some trouble. Let me connect you with a staff member right away. Please hold.",
+        baseUrl,
+        dialSuffix
+      );
+
       await withRetry(() => twilioClient.calls(callSid).update({ twiml: transferTwiml }));
       console.log(`[Voice] AI failure: call ${callSid} transferred to staff`);
       return;
@@ -111,14 +123,13 @@ async function handleAIFailure(callSid, error) {
     }
   }
 
-  // --- Attempt 2: Polite goodbye ---
+  // --- Attempt 2: Polite goodbye (with TTS) ---
   try {
-    const goodbyeTwiml = `
-      <Response>
-        <Say>We're sorry, we're experiencing technical difficulties. Please call us back at our main number. Goodbye.</Say>
-        <Hangup/>
-      </Response>
-    `;
+    const goodbyeTwiml = await buildTwimlWithTTS(
+      "We're sorry, we're experiencing technical difficulties. Please call us back at our main number. Goodbye.",
+      baseUrl,
+      '<Hangup/>'
+    );
     await withRetry(() => twilioClient.calls(callSid).update({ twiml: goodbyeTwiml }));
     console.log(`[Voice] AI failure: call ${callSid} ended with polite goodbye`);
   } catch (hangupErr) {

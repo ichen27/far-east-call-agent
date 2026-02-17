@@ -44,7 +44,7 @@ function validateEnvVars(required, optional) {
 // Validate environment variables on module load
 validateEnvVars(
   ['OPENAI_API_KEY'],
-  ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN']
+  ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID']
 );
 
 /**
@@ -177,6 +177,22 @@ export const sms = {
 };
 
 /**
+ * ElevenLabs TTS configuration.
+ * Optional — enables natural-voice fallback when OpenAI Realtime is unavailable.
+ * @constant {Object}
+ */
+export const elevenlabs = {
+  /** ElevenLabs API key */
+  apiKey: process.env.ELEVENLABS_API_KEY || '',
+
+  /** ElevenLabs voice ID to use for synthesis */
+  voiceId: process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL',
+
+  /** Whether ElevenLabs TTS is available */
+  enabled: !!process.env.ELEVENLABS_API_KEY,
+};
+
+/**
  * Call transfer configuration (FAREAST-4).
  * @constant {Object}
  */
@@ -205,6 +221,7 @@ const config = {
   restaurant,
   sms,
   callTransfer,
+  elevenlabs,
 };
 
 export default config;

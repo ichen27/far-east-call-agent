@@ -98,6 +98,29 @@ async function synthesizeWithElevenLabs(text) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Synthesizes a failure message using the best available TTS provider.
+ *
+ * Returns a Buffer (raw mulaw/8000 audio) if ElevenLabs succeeds, or null
+ * when only Twilio <Say> is available (no audio buffer to return).
+ *
+ * @param {string} text - The failure message to synthesize
+ * @returns {Promise<Buffer|null>} Audio buffer (ElevenLabs) or null (Twilio Say fallback)
+ */
+export async function synthesizeFailureMessage(text) {
+  if (config.elevenlabs.enabled) {
+    try {
+      const audio = await synthesizeWithElevenLabs(text);
+      console.log(`[TTS] synthesizeFailureMessage: ElevenLabs audio generated (${audio.length} bytes)`);
+      return audio;
+    } catch (err) {
+      console.error('[TTS] synthesizeFailureMessage: ElevenLabs failed, no audio buffer available:', err.message);
+    }
+  }
+  // No audio buffer available — caller should use Twilio <Say>
+  return null;
+}
+
+/**
  * Builds a complete TwiML <Response> that speaks the given text using the
  * best available TTS provider.
  *

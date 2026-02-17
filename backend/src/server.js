@@ -26,6 +26,15 @@ import { orderBroadcaster } from './orderBroadcaster.js';
 import { VOICE_AGENT_INSTRUCTIONS } from './agentPrompt.js';
 import { submitOrderSchema } from './orderSchema.js';
 import config from './config.js';
+import { withRetry } from './retry.js';
+import { walAppendPending, walCommit, generateWalId, replayPendingOrders } from './orderWAL.js';
+import {
+  recordSpeechEnd,
+  recordResponseStart,
+  clearCallLatency,
+  recordError,
+  metricsRouter,
+} from './latencyTracker.js';
 
 // ---------------------------------------------------------------------------
 // Twilio Client Setup
@@ -57,6 +66,65 @@ const activeCalls = new Map();
 
 const app = express();
 const server = createServer(app);
+
+// Mount latency metrics endpoint
+app.use(metricsRouter);
+
+// ---------------------------------------------------------------------------
+// AI Failover Helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles an unrecoverable AI session failure by transferring the customer to
+ * restaurant staff. If the transfer itself fails, ends the call politely.
+ *
+ * @param {string} callSid - Twilio call SID
+ * @param {Error|*} error - The error that triggered the failover
+ * @returns {Promise<void>}
+ */
+async function handleAIFailure(callSid, error) {
+  console.error(`[Voice] AI failure on call ${callSid}:`, error?.message || error);
+  recordError();
+
+  if (!callSid) {
+    console.error('[Voice] handleAIFailure: no callSid, cannot recover');
+    return;
+  }
+
+  // --- Attempt 1: Transfer to staff ---
+  if (config.callTransfer.enabled) {
+    try {
+      const transferTwiml = `
+        <Response>
+          <Say>I'm having some trouble. Let me connect you with a staff member right away. Please hold.</Say>
+          <Dial timeout="${config.callTransfer.timeout}" callerId="${config.sms.fromNumber || '+16077971166'}">
+            ${config.callTransfer.staffPhoneNumber}
+          </Dial>
+          <Say>We're sorry, no one is available right now. Please call us back during business hours. Goodbye.</Say>
+        </Response>
+      `;
+      await withRetry(() => twilioClient.calls(callSid).update({ twiml: transferTwiml }));
+      console.log(`[Voice] AI failure: call ${callSid} transferred to staff`);
+      return;
+    } catch (transferErr) {
+      console.error(`[Voice] AI failure: transfer also failed for ${callSid}:`, transferErr.message);
+    }
+  }
+
+  // --- Attempt 2: Polite goodbye ---
+  try {
+    const goodbyeTwiml = `
+      <Response>
+        <Say>We're sorry, we're experiencing technical difficulties. Please call us back at our main number. Goodbye.</Say>
+        <Hangup/>
+      </Response>
+    `;
+    await withRetry(() => twilioClient.calls(callSid).update({ twiml: goodbyeTwiml }));
+    console.log(`[Voice] AI failure: call ${callSid} ended with polite goodbye`);
+  } catch (hangupErr) {
+    console.error(`[Voice] AI failure: goodbye also failed for ${callSid}:`, hangupErr.message);
+  }
+}
 
 /**
  * Incoming call webhook endpoint.
@@ -123,7 +191,9 @@ function createSubmitOrderTool(getCallSid) {
      */
     execute: async ({ phoneNumber, items, notes, totalPrice, scheduledPickupTime }) => {
       try {
-        const { orderNumber } = createOrderAtomic({
+        // Write-Ahead Log: persist intent before DB write
+        const walId = generateWalId();
+        const orderPayload = {
           phoneNumber,
           totalPrice,
           notes: notes || '',
@@ -135,7 +205,13 @@ function createSubmitOrderTool(getCallSid) {
             price: item.price,
             modifications: item.modifications || '',
           })),
-        });
+        };
+        walAppendPending(walId, orderPayload);
+
+        const { orderNumber } = createOrderAtomic(orderPayload);
+
+        // WAL: mark as committed now that DB write succeeded
+        walCommit(walId);
 
         logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, getCallSid(), scheduledPickupTime);
 
@@ -192,7 +268,7 @@ function createHangUpTool(getCallSid) {
       }
 
       try {
-        await twilioClient.calls(callSid).update({ status: 'completed' });
+        await withRetry(() => twilioClient.calls(callSid).update({ status: 'completed' }));
         console.log('[Voice] Call ended successfully');
         return 'Call ended successfully';
       } catch (err) {
@@ -251,7 +327,7 @@ function createTransferToHumanTool(getCallSid) {
           </Response>
         `;
 
-        await twilioClient.calls(callSid).update({ twiml });
+        await withRetry(() => twilioClient.calls(callSid).update({ twiml }));
         console.log(`[Voice] Call ${callSid} transferred to ${config.callTransfer.staffPhoneNumber}`);
         return 'Call is being transferred to staff. The AI assistant will disconnect now.';
       } catch (err) {
@@ -495,6 +571,7 @@ wss.on('connection', (twilioWs) => {
   twilioWs.on('close', () => {
     cleanupTimers();
     if (callSid) {
+      clearCallLatency(callSid);
       activeCalls.delete(callSid);
       const duration = Math.round((Date.now() - connectionTime) / 1000);
       console.log(`[Voice] Call ${callSid} ended after ${duration}s. Active calls: ${activeCalls.size}`);
@@ -506,6 +583,7 @@ wss.on('connection', (twilioWs) => {
     cleanupTimers();
     console.error(`[Voice] WebSocket error for call ${callSid}:`, error.message);
     if (callSid) {
+      clearCallLatency(callSid);
       activeCalls.delete(callSid);
     }
   });
@@ -563,8 +641,40 @@ wss.on('connection', (twilioWs) => {
 
   const realtimeSession = new RealtimeSession(agent, { transport });
 
+  // ---------------------------------------------------------------------------
+  // Session error handler — distinguish fatal AI errors from normal hang-ups
+  // ---------------------------------------------------------------------------
   realtimeSession.on('error', (error) => {
-    console.log('[Voice] Session error (caller may have hung up):', error.type || error);
+    const isFatal =
+      error &&
+      error.type !== 'session_closed' &&
+      error.code !== 'session_expired' &&
+      // Twilio closes the WS when the caller hangs up; treat that as non-fatal
+      !(error.message && /websocket|closed|hangup|disconnect/i.test(error.message));
+
+    if (isFatal) {
+      console.error(`[Voice] Fatal session error on call ${callSid}:`, error.type || error.message || error);
+      handleAIFailure(callSid, error);
+    } else {
+      console.log('[Voice] Session closed (caller may have hung up):', error.type || error.message || error);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Latency tracking — hook into realtime session transport events
+  // ---------------------------------------------------------------------------
+  realtimeSession.on('transport.event', (event) => {
+    if (!callSid) return;
+
+    // User speech ended — start the latency clock
+    if (event.type === 'input_audio_buffer.speech_stopped') {
+      recordSpeechEnd(callSid);
+    }
+
+    // Agent response started — stop the latency clock
+    if (event.type === 'response.created') {
+      recordResponseStart(callSid);
+    }
   });
 
   // Connect to OpenAI and initiate conversation
@@ -605,7 +715,7 @@ wss.on('connection', (twilioWs) => {
         await sleep(15000);
         if (callSid) {
           try {
-            await twilioClient.calls(callSid).update({ status: 'completed' });
+            await withRetry(() => twilioClient.calls(callSid).update({ status: 'completed' }));
             console.log(`[Voice] Call ${callSid} force-ended due to timeout`);
           } catch (err) {
             console.error(`[Voice] Failed to end timed-out call:`, err.message);
@@ -630,7 +740,10 @@ wss.on('connection', (twilioWs) => {
         }
       }, 30000); // Check every 30 seconds
     })
-    .catch((err) => console.error('[Voice] OpenAI connection failed:', err));
+    .catch((err) => {
+      console.error('[Voice] OpenAI connection failed:', err.message || err);
+      handleAIFailure(callSid, err);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -754,11 +867,11 @@ Pickup: ${pickupTimeStr}
 Thank you for your order!`;
 
   try {
-    await twilioClient.messages.create({
+    await withRetry(() => twilioClient.messages.create({
       body: message,
       from: config.sms.fromNumber,
       to: formattedPhone,
-    });
+    }), { maxRetries: 2, baseDelay: 500 });
     console.log(`[SMS] Confirmation sent to ${formattedPhone} for order ${orderNumber}`);
   } catch (error) {
     console.error(`[SMS] Failed to send confirmation:`, error.message);
@@ -769,6 +882,9 @@ Thank you for your order!`;
 // ---------------------------------------------------------------------------
 // Server Startup
 // ---------------------------------------------------------------------------
+
+// Replay any orders that were pending when the server last crashed
+replayPendingOrders().catch((err) => console.error('[WAL] Startup replay failed:', err.message));
 
 server.listen(config.ports.voice, () => {
   console.log(`[Voice] Server running on port ${config.ports.voice}`);

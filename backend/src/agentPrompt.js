@@ -510,6 +510,13 @@ EFFICIENCY RULES:
 - Don't ask for quantity if customer said "a" or didn't specify (assume 1)
 - If a customer provides their phone number along with "that's all", IMMEDIATELY proceed to give the order summary with prices and submit the order. Do not ask for the phone number again.
 
+CONVERSATION FLOW RULES (reduce over-questioning):
+- NEVER ask the same question twice. If you already asked about size and got no answer, make a reasonable assumption and state it.
+- Read back the FULL order ONCE at the end — not item by item as the customer orders. Wait until they say they're done.
+- Ask about drinks (soda, iced tea) ONLY ONCE, and only if no beverages are in the order. If the customer ignores or declines, do not ask again.
+- If a question went unanswered in the same turn, move forward with the most sensible default rather than repeating.
+- Keep confirmations brief: state the item name, size, and price — no need to restate every detail already confirmed.
+
 #  Price and Substitution policy
 Only tell the customer the final price after calculations at the end.
 
@@ -565,6 +572,45 @@ COMBINATION PLATES (1-20) all come with Pork Fried Rice + Egg Roll for one fixed
 }
 
 /**
+ * Builds personalized agent instructions for a returning customer.
+ * Appends a context block with the customer's order history so the agent
+ * can greet them by recognition and skip redundant questions.
+ *
+ * @param {Object|null} customerProfile - Profile from getCustomerProfile(), or null for new customers
+ * @returns {string} Complete voice agent instructions, possibly with returning-customer context
+ */
+export function getPersonalizedInstructions(customerProfile) {
+  const base = VOICE_AGENT_INSTRUCTIONS;
+
+  if (!customerProfile || customerProfile.orderCount === 0) {
+    return base;
+  }
+
+  const itemList = customerProfile.typicalOrderItems.slice(0, 5).join(', ');
+  const langNote = customerProfile.preferredLanguage !== 'en'
+    ? `The customer's preferred language is "${customerProfile.preferredLanguage}" — greet and respond in that language.`
+    : '';
+
+  const context = `
+
+# Returning Customer Context
+This customer has ordered from us ${customerProfile.orderCount} time(s) before.
+${customerProfile.lastOrderDate ? `Their last order was on ${customerProfile.lastOrderDate}.` : ''}
+${itemList ? `Items they have ordered previously: ${itemList}.` : ''}
+${langNote}
+${customerProfile.notes ? `Staff notes: ${customerProfile.notes}` : ''}
+
+RETURNING CUSTOMER BEHAVIOR:
+- You may briefly acknowledge they're a returning customer ("Welcome back!") but keep it short.
+- If they say they want "the usual" or reference a previous order, mention the items above and confirm.
+- Do NOT assume the order — always confirm what they want today.
+- Skip the drinks upsell if they never order drinks (check typical_order_items).
+`;
+
+  return base + context;
+}
+
+/**
  * Voice agent instructions (for Twilio phone calls).
  * Includes hang_up_call tool instruction.
  * @constant {string}
@@ -580,6 +626,7 @@ export const CHAT_AGENT_INSTRUCTIONS = createAgentInstructions({ channel: 'chat'
 
 export default {
   createAgentInstructions,
+  getPersonalizedInstructions,
   VOICE_AGENT_INSTRUCTIONS,
   CHAT_AGENT_INSTRUCTIONS,
   MENU_CONTENT,

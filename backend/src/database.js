@@ -734,6 +734,108 @@ export function getDashboardStats() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Customer Profile Functions (Sprint 9.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get a customer profile by phone number.
+ *
+ * @param {string} phoneNumber - Customer phone number (any format)
+ * @returns {Object|null} - Customer profile or null if not found
+ */
+export function getCustomerProfile(phoneNumber) {
+  const normalized = phoneNumber.replace(/\D/g, '');
+  const row = db.prepare(`
+    SELECT phone_number, preferred_language, typical_order_items, last_order_date, order_count, notes
+    FROM customer_profiles
+    WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone_number, '-', ''), '(', ''), ')', ''), ' ', '') = ?
+  `).get(normalized);
+
+  if (!row) return null;
+
+  return {
+    phoneNumber: row.phone_number,
+    preferredLanguage: row.preferred_language || 'en',
+    typicalOrderItems: row.typical_order_items ? JSON.parse(row.typical_order_items) : [],
+    lastOrderDate: row.last_order_date || null,
+    orderCount: row.order_count || 0,
+    notes: row.notes || '',
+  };
+}
+
+/**
+ * Create or update a customer profile.
+ * On conflict (same phone_number), merges provided fields.
+ *
+ * @param {string} phoneNumber - Customer phone number
+ * @param {Object} data - Fields to set/update
+ * @param {string} [data.preferredLanguage] - Detected language code
+ * @param {Array}  [data.typicalOrderItems] - Items ordered (merged with existing)
+ * @param {string} [data.lastOrderDate] - ISO date string of last order
+ * @param {number} [data.orderCount] - Total order count (will be incremented if incrementCount=true)
+ * @param {string} [data.notes] - Free-form notes
+ * @param {boolean} [data.incrementCount] - If true, increment order_count by 1
+ */
+export function upsertCustomerProfile(phoneNumber, data = {}) {
+  const normalized = phoneNumber.replace(/\D/g, '');
+
+  const upsert = db.transaction(() => {
+    const existing = db.prepare(`
+      SELECT phone_number, preferred_language, typical_order_items, last_order_date, order_count, notes
+      FROM customer_profiles
+      WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone_number, '-', ''), '(', ''), ')', ''), ' ', '') = ?
+    `).get(normalized);
+
+    if (!existing) {
+      // Insert new profile
+      const items = data.typicalOrderItems || [];
+      db.prepare(`
+        INSERT INTO customer_profiles (phone_number, preferred_language, typical_order_items, last_order_date, order_count, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        phoneNumber,
+        data.preferredLanguage || 'en',
+        JSON.stringify(items),
+        data.lastOrderDate || null,
+        data.incrementCount ? 1 : (data.orderCount || 0),
+        data.notes || ''
+      );
+    } else {
+      // Merge and update existing profile
+      const existingItems = existing.typical_order_items ? JSON.parse(existing.typical_order_items) : [];
+      const newItems = data.typicalOrderItems || [];
+
+      // Merge item names, keeping most recent additions up front
+      const mergedSet = new Set([...newItems, ...existingItems]);
+      const mergedItems = [...mergedSet].slice(0, 20); // cap at 20 items
+
+      const newCount = data.incrementCount
+        ? (existing.order_count || 0) + 1
+        : (data.orderCount !== undefined ? data.orderCount : existing.order_count || 0);
+
+      db.prepare(`
+        UPDATE customer_profiles SET
+          preferred_language = ?,
+          typical_order_items = ?,
+          last_order_date = ?,
+          order_count = ?,
+          notes = ?
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone_number, '-', ''), '(', ''), ')', ''), ' ', '') = ?
+      `).run(
+        data.preferredLanguage || existing.preferred_language || 'en',
+        JSON.stringify(mergedItems),
+        data.lastOrderDate || existing.last_order_date || null,
+        newCount,
+        data.notes !== undefined ? data.notes : (existing.notes || ''),
+        normalized
+      );
+    }
+  });
+
+  upsert();
+}
+
 // Export the raw db for cases where direct access is needed
 // (use sparingly - prefer the atomic functions above)
 export { db };

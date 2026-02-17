@@ -21,9 +21,12 @@ import {
   addItemToOrder,
   removeItemFromOrder,
   cancelOrder,
+  getCustomerProfile,
+  upsertCustomerProfile,
 } from './database.js';
 import { orderBroadcaster } from './orderBroadcaster.js';
-import { VOICE_AGENT_INSTRUCTIONS } from './agentPrompt.js';
+import { VOICE_AGENT_INSTRUCTIONS, getPersonalizedInstructions } from './agentPrompt.js';
+import { logCallEvent } from './callLogger.js';
 import { submitOrderSchema } from './orderSchema.js';
 import config from './config.js';
 import { withRetry } from './retry.js';
@@ -61,6 +64,14 @@ const twilioClient = Twilio(
  */
 const activeCalls = new Map();
 
+/**
+ * Map storing the caller's phone number from the Twilio webhook,
+ * so the WebSocket handler can look it up for customer profile personalization.
+ * Key: callSid, Value: caller phone (E.164)
+ * @type {Map<string, string>}
+ */
+const callerPhoneMap = new Map();
+
 // ---------------------------------------------------------------------------
 // Express App Setup
 // ---------------------------------------------------------------------------
@@ -89,6 +100,7 @@ registerTTSRoutes(app);
 async function handleAIFailure(callSid, error) {
   console.error(`[Voice] AI failure on call ${callSid}:`, error?.message || error);
   recordError();
+  logCallEvent(callSid, 'ai_failure', { error: error?.message || String(error) });
 
   if (!callSid) {
     console.error('[Voice] handleAIFailure: no callSid, cannot recover');
@@ -146,7 +158,15 @@ async function handleAIFailure(callSid, error) {
  */
 app.post('/incoming-call', express.urlencoded({ extended: false }), (req, res) => {
   const callSid = req.body.CallSid;
-  console.log('[Voice] Incoming call:', callSid);
+  const callerPhone = req.body.From || '';
+  console.log('[Voice] Incoming call:', callSid, 'from', callerPhone);
+
+  logCallEvent(callSid, 'call_start', { callerPhone });
+
+  // Store caller phone keyed by callSid so the WS handler can retrieve it
+  if (callerPhone) {
+    callerPhoneMap.set(callSid, callerPhone);
+  }
 
   // Respond with TwiML to stream audio to our WebSocket server
   res.type('xml').send(`
@@ -225,6 +245,24 @@ function createSubmitOrderTool(getCallSid) {
         walCommit(walId);
 
         logOrderSubmission(orderNumber, phoneNumber, items, totalPrice, getCallSid(), scheduledPickupTime);
+
+        logCallEvent(getCallSid(), 'order_placed', {
+          orderNumber,
+          phoneNumber,
+          itemCount: items.length,
+          totalPrice,
+        });
+
+        // Update customer profile: increment count, track items, update last order date
+        try {
+          upsertCustomerProfile(phoneNumber, {
+            typicalOrderItems: items.map((i) => i.name),
+            lastOrderDate: new Date().toISOString().slice(0, 10),
+            incrementCount: true,
+          });
+        } catch (profileErr) {
+          console.error('[Voice] Failed to update customer profile:', profileErr.message);
+        }
 
         await broadcastOrderToFrontend(orderNumber, phoneNumber, items, notes, totalPrice, scheduledPickupTime);
 
@@ -340,6 +378,7 @@ function createTransferToHumanTool(getCallSid) {
 
         await withRetry(() => twilioClient.calls(callSid).update({ twiml }));
         console.log(`[Voice] Call ${callSid} transferred to ${config.callTransfer.staffPhoneNumber}`);
+        logCallEvent(callSid, 'transfer', { transferredTo: config.callTransfer.staffPhoneNumber });
         return 'Call is being transferred to staff. The AI assistant will disconnect now.';
       } catch (err) {
         console.error('[Voice] Failed to transfer call:', err.message);
@@ -584,8 +623,10 @@ wss.on('connection', (twilioWs) => {
     if (callSid) {
       clearCallLatency(callSid);
       activeCalls.delete(callSid);
+      callerPhoneMap.delete(callSid);
       const duration = Math.round((Date.now() - connectionTime) / 1000);
       console.log(`[Voice] Call ${callSid} ended after ${duration}s. Active calls: ${activeCalls.size}`);
+      logCallEvent(callSid, 'call_end', { activeCalls: activeCalls.size }, duration);
     }
   });
 

@@ -426,6 +426,23 @@ const menuItems = [
   { item_number: 'CP20', name: 'Triple Delight Combo', description: 'Shrimp, chicken, and pork with mixed vegetables.', price_single: 11.15, category: 'Combination Plates', included: 'Pork Fried Rice & Egg Roll' },
 ];
 
+/**
+ * Creates the customer_profiles table for tracking returning customers.
+ */
+function createCustomerProfilesTable() {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS customer_profiles (
+      phone_number        TEXT PRIMARY KEY,
+      preferred_language  TEXT DEFAULT 'en',
+      typical_order_items TEXT DEFAULT '[]',
+      last_order_date     TEXT DEFAULT NULL,
+      order_count         INTEGER DEFAULT 0,
+      notes               TEXT DEFAULT ''
+    )
+  `).run();
+  console.log('[DB] customer_profiles table ready');
+}
+
 // ---------------------------------------------------------------------------
 // Data Population
 // ---------------------------------------------------------------------------
@@ -481,6 +498,7 @@ function initializeDatabase() {
   createMenuItemsTable();
   createOrdersTable();
   createOrderItemsTable();
+  createCustomerProfilesTable();
 
   // Populate menu data
   populateMenuItems();

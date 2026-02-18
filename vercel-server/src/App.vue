@@ -208,7 +208,16 @@ async function completeOrder(orderNumber: string): Promise<void> {
     })
     const data: ApiResponse = await response.json()
     if (data.success) {
+      const completed = orders.value.find(o => o.orderNumber === orderNumber)
       orders.value = orders.value.filter(o => o.orderNumber !== orderNumber)
+      // Optimistically update stats so header stays in sync
+      if (completed) {
+        stats.value = {
+          pending: Math.max(0, stats.value.pending - 1),
+          completedToday: stats.value.completedToday + 1,
+          revenueToday: stats.value.revenueToday + completed.total,
+        }
+      }
     } else {
       throw new Error(data.error || 'Failed to complete order')
     }
@@ -231,6 +240,8 @@ async function cancelOrder(orderNumber: string): Promise<void> {
     const data: ApiResponse = await response.json()
     if (data.success) {
       orders.value = orders.value.filter(o => o.orderNumber !== orderNumber)
+      // Optimistically update pending count
+      stats.value = { ...stats.value, pending: Math.max(0, stats.value.pending - 1) }
     } else {
       throw new Error(data.error || 'Failed to cancel order')
     }

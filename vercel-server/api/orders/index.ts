@@ -15,6 +15,7 @@ import {
   getPendingOrders,
   getHistoryOrders,
   completeOldOrders,
+  getDailyStats,
   type NewOrder,
 } from '../../lib/db.js';
 
@@ -47,9 +48,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         orders = await getAllOrders();
       }
 
+      // Fetch daily stats
+      const stats = await getDailyStats();
+
       return res.status(200).json({
         success: true,
         orders,
+        stats,
         view: view || 'all',
         timestamp: new Date().toISOString(),
       });

@@ -92,8 +92,6 @@ watch(prepCollapsed, (v) => localStorage.setItem('fe-prep-collapsed', String(v))
 // Computed Properties
 // ============================================================================
 
-const currentOrderCount = computed(() => orders.value.filter(o => o.status === 'pending').length)
-
 const todayDate = computed(() => {
   return new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',

@@ -522,3 +522,25 @@ export async function completeOldOrders(): Promise<number> {
   console.log(`[DB] Auto-completed ${result.rows.length} orders from previous days`);
   return result.rows.length;
 }
+
+/**
+ * Get daily stats: pending count, completed today, revenue today
+ */
+export async function getDailyStats(): Promise<{ pending: number; completedToday: number; revenueToday: number }> {
+  const today = new Date().toISOString().split('T')[0];
+
+  const result = await sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+      COUNT(*) FILTER (WHERE status = 'completed' AND DATE(updated_at) = ${today}) AS completed_today,
+      COALESCE(SUM(total) FILTER (WHERE status = 'completed' AND DATE(updated_at) = ${today}), 0) AS revenue_today
+    FROM orders
+  `;
+
+  const row = result.rows[0];
+  return {
+    pending: parseInt(row.pending) || 0,
+    completedToday: parseInt(row.completed_today) || 0,
+    revenueToday: parseFloat(row.revenue_today) || 0,
+  };
+}
